@@ -27,25 +27,25 @@ for i in range(len(obs)):
     w.write('circle('+str(ra)+'d,'+str(dec)+'d,3\") #text={'+obs[i]+'}\n')
 w.close()
 '''
-for band in ['0.5-2']:
+for band in ['hard']:
 	#start from 4221 in a 7200x7200 square
-	#w=open(wd+'commands_r90.xco','w')
-	w2=open(wd+'commands_bkg.xco','w')
-	w3=open(wd+'commands_exp.xco','w')
+	w=open(wd+'commands_r90.xco','w')
+	#w2=open(wd+'commands_bkg.xco','w')
+	#w3=open(wd+'commands_exp.xco','w')
 	
 	#w.write('read/fits/size=7200 '+wd+'data/4221/repro_new_asol/acisf04221_repro_'+band+'keV_4rebinned.img\n')
-	#w.write('read/fits/size=7200/rebin=4 '+wd+'sim_full_new/acisf04221_sim_poiss.fits\n')
+	w.write('read/fits/size=7200/rebin=4 '+wd+'sim_'+band+'/acisf04221_sim_poiss.fits\n')
 	#w.write('read/fits/size=7200/rebin=4 '+wd+'psfmaps/04221_r90-x-expo.fits\n')
-	w2.write('read/fits/size=7200/rebin=4 '+wd+'data/4221/repro_new_asol/out/acisf04221_'+band+'_bkgmap.fits\n')
-	w3.write('read/fits/size=7200/rebin=4 '+wd+'data/4221/repro_new_asol/out/acisf04221_'+band+'_expomap.fits\n')
+	#w2.write('read/fits/size=7200/rebin=4 '+wd+'data/4221/repro_new_asol/out/acisf04221_'+band+'_bkgmap.fits\n')
+	#w3.write('read/fits/size=7200/rebin=4 '+wd+'data/4221/repro_new_asol/out/acisf04221_'+band+'_expomap.fits\n')
 	
 	#w.write('read/fits/size=7200 '+wd+'data/4221/repro_new_asol/expo_0.5-2.0_flux.img\n')
 	#w2.write('read/fits/size=7200 '+wd+'data/4221/repro_new_asol/expo_2.0-4.5_flux.img\n')
 	#w3.write('read/fits/size=7200 '+wd+'data/4221/repro_new_asol/expo_4.5-7.0_flux.img\n')
 	
-	#w.write('save_image\n')
-	w2.write('save_image\n')
-	w3.write('save_image\n')
+	w.write('save_image\n')
+	#w2.write('save_image\n')
+	#w3.write('save_image\n')
 	
 	for i in range(len(obs)):
 		if len(obs[i]) == 4:
@@ -56,32 +56,33 @@ for band in ['0.5-2']:
 			stem=obs[i]
 		if obs[i]!='4221':
 			#w.write('read/fits '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_'+band+'keV_4rebinned.img\n')			
-			#w.write('read/fits/rebin=4 '+wd+'sim_full_new/acisf'+stem+'_sim_poiss.fits\n')
+			w.write('read/fits/rebin=4 '+wd+'sim_'+band+'/acisf'+stem+'_sim_poiss.fits\n')
 			#w.write('read/fits/rebin=4 '+wd+'psfmaps/'+stem+'_r90-x-expo.fits\n')
-			w2.write('read/fits/rebin=4 '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band+'_bkgmap.fits\n')
-			w3.write('read/fits/rebin=4 '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band+'_expomap.fits\n')
+			#w2.write('read/fits/rebin=4 '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band+'_bkgmap.fits\n')
+			#w3.write('read/fits/rebin=4 '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band+'_expomap.fits\n')
 			
 			#w.write('read/fits '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/expo_0.5-2.0_flux.img\n')
 			#w2.write('read/fits '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/expo_2.0-4.5_flux.img\n')
 			#w3.write('read/fits '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/expo_4.5-7.0_flux.img\n')
 			
-			#w.write('sum_image\n')
-			w2.write('sum_image\n')
-			w3.write('sum_image\n')
+			w.write('sum_image\n')
+			#w2.write('sum_image\n')
+			#w3.write('sum_image\n')
 			
-			#w.write('save_image\n')
-			w2.write('save_image\n')
-			w3.write('save_image\n')
+			w.write('save_image\n')
+			#w2.write('save_image\n')
+			#w3.write('save_image\n')
 			
 
-	if band =='0.5-2':
-		#w.write('write/fits '+wd+'mosaic_soft_4rebinned_not-expo-corr.fits\n')
-		w2.write('write/fits '+wd+'mosaic_soft_bkgmap_4rebinned.fits\n')
-		w3.write('write/fits '+wd+'mosaic_soft_expomap_4rebinned.fits\n')
-	elif band =='2to7':
-		#w.write('write/fits '+wd+'mosaic_hard_4rebinned_not-expo-corr.fits\n')
-		w2.write('write/fits '+wd+'mosaic_hard_bkgmap_4rebinned.fits\n')
-		w3.write('write/fits '+wd+'mosaic_hard_expomap_4rebinned.fits\n')
+	if band =='soft':
+		w.write('write/fits '+wd+'mosaic_soft_sim_poiss_4rebinned.fits\n')
+		#w2.write('write/fits '+wd+'mosaic_soft_bkgmap_4rebinned.fits\n')
+		#w3.write('write/fits '+wd+'mosaic_soft_expomap_4rebinned.fits\n')
+	elif band =='hard':
+		#pass
+		w.write('write/fits '+wd+'mosaic_hard_sim_poiss_4rebinned.fits\n')
+		#w2.write('write/fits '+wd+'mosaic_hard_bkgmap_4rebinned.fits\n')
+		#w3.write('write/fits '+wd+'mosaic_hard_expomap_4rebinned.fits\n')
 	else:
 		pass
 		#w2.write('write/fits '+wd+'mosaic_'+band+'_bkgmap_4rebinned.fits\n')
@@ -94,17 +95,17 @@ for band in ['0.5-2']:
 		#w2.write('write/fits '+wd+'/cdwfs_medium_4rebin.fits\n')
 		#w3.write('write/fits '+wd+'/cdwfs_hard_4rebin.fits\n')
 	
-	#w.write('exit\n')
-	w2.write('exit\n')
-	w3.write('exit\n')
+	w.write('exit\n')
+	#w2.write('exit\n')
+	#w3.write('exit\n')
 	
-	#w.close()
-	w2.close()
-	w3.close()
+	w.close()
+	#w2.close()
+	#w3.close()
 
-	#s.call('ximage @'+wd+'commands_r90.xco',shell=True)
-	s.call('ximage @'+wd+'commands_exp.xco',shell=True)
-	s.call('ximage @'+wd+'commands_bkg.xco',shell=True)
+	s.call('ximage @'+wd+'commands_r90.xco',shell=True)
+	#s.call('ximage @'+wd+'commands_exp.xco',shell=True)
+	#s.call('ximage @'+wd+'commands_bkg.xco',shell=True)
 
 	elapsed_time=time.time()-start_time
 	print(float(elapsed_time)/60.)

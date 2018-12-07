@@ -4,6 +4,8 @@
 # THERE'S NO WAY TO PREVENT THIS - THAT'S WHY I MADE THIS SCRIPT, THAT INSTEAD OF CALLING
 # np.random.poisson FOR THE WHOLE FILE calls it pixel by pixel. THIS CREATES ANOTHER 
 # PROBLEM WITH XIMAGE, THOUGH. WEIRD MOSAICS RESULT IN THIS WAY.
+
+# THIS CODE IS NOW OBSOLETE; ALREADY IMPLEMENTED IN simul.py and run_new_simul.py
 import numpy as np
 import sys
 from astropy.io import fits

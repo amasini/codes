@@ -17,17 +17,17 @@ for i in range(len(obsid)):
 		stem=obsid[i]
 	print(i+1)
     #takes simulation
-	sim=fits.open(wd+'/sim_full/acisf'+stem+'_sim.fits')
+	sim=fits.open(wd+'/sim_soft/acisf'+stem+'_sim.fits')
 	simulation=sim[0].data
 	backheader=sim[0].header
     
     #creates a new Poissonian realization of the image and saves it
 	poiss_sim=np.random.poisson(simulation)
 	hdu0 = fits.PrimaryHDU(poiss_sim,header=backheader)
-	hdu0.writeto(wd+'/sim_full_new/acisf'+stem+'_sim_poiss.fits',overwrite=True)
+	hdu0.writeto(wd+'/sim_soft/acisf'+stem+'_sim_poiss.fits',overwrite=True)
 	poiss_sim2=poiss_sim.astype(float) #this prevents the simulation to have bitpix=64 causing issues with dmextract
 	hdu1 = fits.PrimaryHDU(poiss_sim2,header=backheader)
-	hdu1.writeto(wd+'/sim_full_new/acisf'+stem+'_sim_poiss_bitpix-64.fits',overwrite=True)
+	hdu1.writeto(wd+'/sim_soft/acisf'+stem+'_sim_poiss_bitpix-64.fits',overwrite=True)
 
 sys.exit() #Stop here
 

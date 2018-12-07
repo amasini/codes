@@ -5,16 +5,16 @@ import numpy as np
 from astropy.io import fits
 import matplotlib.pyplot as plt
 
-wd='/Users/alberto/Desktop/XBOOTES/chunks_of_mosaics_fullres/'
+wd='/Users/alberto/Desktop/XBOOTES/'
 
-dat=fits.open(wd+'out_0-1-2-3-4-5_new_bothscales.fits')
+dat=fits.open(wd+'mosaic_soft_sim_poiss_src_3.fits')
 cts_sim=dat[1].data['NET_COUNTS']
 
-dat2=fits.open(wd+'out_0-1-2-3-4-5_dat_bothscales.fits')
+dat2=fits.open(wd+'mosaic_soft_src_3.fits')
 cts_dat=dat2[1].data['NET_COUNTS']
 
-mincts=7
-maxcts=14000
+mincts=0.1
+maxcts=60
 cts_dat2=cts_dat[cts_dat<maxcts]
 cts_sim2=cts_sim[cts_sim<maxcts]
 

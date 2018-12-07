@@ -97,10 +97,10 @@ tstart= datetime.datetime.now()
 #read the file and put it in memory
 file_in_memory = []
 
-hdul=fits.open(wd+'mosaic_broad_sim_poiss_cat0_3.fits') #file to clean, with duplicates (blendings)
+hdul=fits.open(wd+'mosaic_hard_sim_poiss_cat0_3.fits') #file to clean, with duplicates (blendings)
 ra_k=hdul[1].data['RA']
 dec_k=hdul[1].data['DEC']
-detml=hdul[1].data['DETML']
+prob=hdul[1].data['PROB']
 r90=hdul[1].data['AV_R90']
 cts_full=hdul[1].data['TOT']
 flux_k=hdul[1].data['FLUX']
@@ -109,13 +109,13 @@ file=hdul[1].data
 hdul.close()
 #cut detected sample at a given probability threshold (1e-3)
 cut=1e-3
-prob=np.e**(-detml)
+#prob=np.e**(-detml)
 
 ra_k=ra_k[prob<=cut]
 dec_k=dec_k[prob<=cut]
 cts_full=cts_full[prob<=cut]
 r90=r90[prob<=cut]
-detml=detml[prob<=cut]
+#detml=detml[prob<=cut]
 flux_k=flux_k[prob<=cut]
 file=file[prob<=cut]
 prob=prob[prob<=cut]
@@ -159,7 +159,7 @@ for i in range(len(file_in_memory2)):
 
 #write catalog
 cat=Table([ra,dec,prob,av_r90,tot,bkg,net,exptime,cr,flux],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','EXP','CR','FLUX'))
-cat.write(wd+'mosaic_broad_sim_poiss_cat1_3.fits',format='fits',overwrite=True)
+cat.write(wd+'mosaic_hard_sim_poiss_cat1_3.fits',format='fits',overwrite=True)
 
 tstop= datetime.datetime.now()
 time_elapse = tstop - tstart

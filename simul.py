@@ -28,11 +28,43 @@ start_time=time.time()
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-(f_s,ra_s,dec_s)=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',skip_header=1,unpack=True,usecols=[0,1,2])
+################
+# define the band
+band='soft'
+band2='0.5-2' #different for soft band only, used 0.5-2 for bkgmap and expomap, while broad and hard are ok
+#################
 
-dat=fits.open('psf1_rebinned.fits')
-data_cts=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=2)
+#################
+# take input sources; remember that full band requires lehmerx20.dat
+#(f_s,ra_s,dec_s)=np.genfromtxt(wd+'poiss_rand_'+band+'_lehmer.dat',skip_header=1,unpack=True,usecols=[0,1,2])
+(f_s,ra_s,dec_s)=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',skip_header=1,unpack=True,usecols=[0,1,2])
+#################
+
+#################
+# take psffile, remember that the energies are 0.277 keV, 1.49 keV, 4.51 keV, 6.4 keV, 8.6 keV
+dat=fits.open(wd+'psf1_rebinned.fits')
+#################
+
+#################
+# take counts in the images, based on the band adopted
+if band=='broad':
+	data_cts=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=2) #dirs obsid cts_full cts_soft cts_hard
+	cf=5.438E+10 #conversion factor from flux to count rate from PIMMS (Gamma=1.8)
+elif band=='soft':
+	data_cts=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=3) #dirs obsid cts_full cts_soft cts_hard
+	#cf=6.127E+10 #conversion factor from flux to count rate from PIMMS (Gamma=1.8)
+	cf=6.758E+10 #conversion factor from flux to count rate from PIMMS (Gamma=1.4)
+elif band=='hard':
+	data_cts=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=4) #dirs obsid cts_full cts_soft cts_hard
+	cf=4.960E+10 #conversion factor from flux to count rate from PIMMS (Gamma=1.8)
+#################
+
+#################
+# take names of directories
 (dirs0,obsid0)=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=[0,1],dtype=str)
+#################
+
+# START THE LOOP ON THE OBSIDS
 kk=0
 for j in range(len(obsid0)):
 	if len(obsid0[j]) == 4:
@@ -46,16 +78,16 @@ for j in range(len(obsid0)):
 		sys.exit()
 
 	#produce fov file for ACIS-I
-	filename='acisf'+stem+'_repro_fov1.fits'
+	#filename='acisf'+stem+'_repro_fov1.fits'
 
-	fovfits=fits.open(wd+'data/'+obsid0[j]+'/repro_new_asol/'+filename)
+	#fovfits=fits.open(wd+'data/'+obsid0[j]+'/repro_new_asol/'+filename)
 
-	fov=fovfits[1].data
-	fovfits[1].data=fov[fov["CCD_ID"]<4]
-	fovfits.writeto(wd+'data/'+obsid0[j]+'/repro_new_asol/fov_acisI.fits',overwrite=True)
-	fovfits.close()
+	#fov=fovfits[1].data
+	#fovfits[1].data=fov[fov["CCD_ID"]<4]
+	#fovfits.writeto(wd+'data/'+obsid0[j]+'/repro_new_asol/fov_acisI.fits',overwrite=True)
+	#fovfits.close()
 
-	if obsid0[j]!='AAA':
+	if obsid0[j]=='6998': # this if is here to filter out some obsids, if needed
 		sources_ra,sources_dec,sources_flux=[],[],[]
 		my_obs = FOVFiles(wd+'data/'+obsid0[j]+'/repro_new_asol/fov_acisI.fits')
 		for k in range(len(ra_s)):
@@ -69,20 +101,21 @@ for j in range(len(obsid0)):
 		### WATCH OUT HERE!!!
 		datafull=data_cts[j]
 	
-		bkg=fits.open(wd+'data/'+obsid0[j]+'/repro_new_asol/out/acisf'+stem+'_broad_bkgmap.fits')
+		bkg=fits.open(wd+'data/'+obsid0[j]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap.fits')
 		back=bkg[0].data
 		backheader=bkg[0].header
 		bkg.close()
 	
-		exp=fits.open(wd+'data/'+obsid0[j]+'/repro_new_asol/out/acisf'+stem+'_broad_expomap.fits')
+		exp=fits.open(wd+'data/'+obsid0[j]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_expomap.fits')
 		expomap=exp[0].data
 		exp.close()
 	
 		noback=np.zeros_like(back)
 	
-		path=wd+'data/'+obsid0[j]+'/repro_new_asol/out/acisf'+stem+'_broad_expomap.fits'
+		path=wd+'data/'+obsid0[j]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_expomap.fits'
 		roll=s.check_output('dmkeypar '+path+' ROLL_PNT echo=yes',shell=True) #arcmin
 		roll=float(roll)
+		print('Throwing sources on bkg in '+obsid0[j]+'...')
 		for i in range(len(sources_ra)):
 			#print(i)
 			#dmcoords from cel to msc (ra,dec)->(theta,phi,logicalx,logicaly)
@@ -102,10 +135,13 @@ for j in range(len(obsid0)):
 			roundedx=round(logicalx)
 			roundedy=round(logicaly)
 			#21elevations 21azimuths 5energies 1defocus 64x64 pixels
-			psf=dat[0].data[index0][index1][1][0]
+			if band != 'hard':
+				psf=dat[0].data[index0][index1][1][0]
+			else:
+				psf=dat[0].data[index0][index1][2][0]
 			expo=expomap[int(roundedy-1)][int(roundedx-1)]
 			#compute total counts and rescale psf; PIMMS predicts 5.438E+10 cps with CHANDRA ACIS-I (0.5-7 keV, Gamma=1.8; would be 5.392E+10 w/ Gamma=1.4)
-			counts=sources_flux[i]*expo*5.438E+10
+			counts=sources_flux[i]*expo*cf*2
 			newpsf=psf*(counts/np.sum(psf))
 			
 			x0,y0 = 128,128 # (xrot,yrot) should point there
@@ -144,28 +180,33 @@ for j in range(len(obsid0)):
 					m=m+1
 				n=n+1
 	
-		#rescale sources instead of background
+		
 		sim_sources=np.sum(noback)
-		#newsources=noback*((datafull-np.sum(back))/sim_sources)
-		newback=back*((datafull-sim_sources)/np.sum(back))
+		#newsources=noback*((datafull-np.sum(back))/sim_sources) #rescale sources instead of background
+		newback=back*((datafull-sim_sources)/np.sum(back)) #rescale background to get same total counts
+		
+		print('Original background is',np.sum(back),'Rescaled one is',np.sum(newback))
 		
 		#print(datafull, sim_sources,np.sum(back),np.sum(newback))
 		#print(len(newback[newback<0]))
 		simulation=newback+noback
+		#simulation=back+noback
 		#simulation=newsources+back
 		
 		simulation[simulation<0]=0      
 		hdu0 = fits.PrimaryHDU(simulation,header=backheader)                
-		hdu0.writeto(wd+'/sim_full/acisf'+stem+'_sim.fits',overwrite=True) 
+		hdu0.writeto(wd+'/sim_'+band+'/acisf'+stem+'_sim.fits',overwrite=True) 
 
 		#old method
 		poiss_sim=np.random.poisson(simulation)
+		hdu1 = fits.PrimaryHDU(poiss_sim,header=backheader)
+		hdu1.writeto(wd+'/sim_'+band+'/acisf'+stem+'_sim_poiss.fits',overwrite=True)
 		poiss_sim2=poiss_sim.astype(float) #this prevents the simulation to have bitpix=64 causing issues with dmextract
-		hdu1 = fits.PrimaryHDU(poiss_sim2,header=backheader)
-		hdu1.writeto(wd+'/sim_full/acisf'+stem+'_sim_poiss.fits',overwrite=True)
-	                    
+		hdu2 = fits.PrimaryHDU(poiss_sim2,header=backheader)
+		hdu2.writeto(wd+'/sim_'+band+'/acisf'+stem+'_sim_poiss_bitpix-64.fits',overwrite=True)
+	                
 elapsed_time=time.time()-start_time
-print(float(elapsed_time)/3600.)
+print(float(elapsed_time)/3600.,'hours for the whole simulation.')
 dat.close()
 '''
 my_obs = FOVFiles(wd+'*/*/repro/fov_acisI.fits')

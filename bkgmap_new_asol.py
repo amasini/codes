@@ -51,17 +51,24 @@ for i in range(len(obsid)):
 	#print(bkg912,e_bkg912)
 	#print('='*15)
 	#w.write(obsid[i]+' \t '+str(bkg912)+' \t '+str(e_bkg912)+'\n')
-	
-	instrbkg=np.array([(0.12+0.27+1.1),(0.12+0.27),1.1])*bkg912 #these are cts/s/pixel**2
-	coeff=[0.19,0.07,0.12] #these are cts/s/chip; each acis-I chip has 1024x1024 pixels
+
 	for j in range(len(band)):
+		if band[j] == 'broad':
+			instrbkg=(0.12+0.27+1.1)*bkg912 #these are cts/s/pixel**2 (F,S,H)
+			coeff=0.19 #these are cts/s/chip; each acis-I chip has 1024x1024 pixels
+		elif band[j] == '0.5-2':
+			instrbkg=(0.12+0.27)*bkg912 #these are cts/s/pixel**2 (F,S,H)
+			coeff=0.07 #these are cts/s/chip; each acis-I chip has 1024x1024 pixels
+		elif band[j] == 'hard':
+			instrbkg=1.1*bkg912 #these are cts/s/pixel**2 (F,S,H)
+			coeff=0.12 #these are cts/s/chip; each acis-I chip has 1024x1024 pixels
 		dat=fits.open(wd+'data/'+obsid[i]+'/repro_new_asol/out/'+band[j]+'_thresh.expmap')
 		expo=dat[0].data
 		header=dat[0].header
 		dat.close()
 		#rescale expomap
-		new=expo*instrbkg[j]
-		totbkg=expo*(coeff[j]/1024**2)
+		new=expo*instrbkg
+		totbkg=expo*(coeff/1024**2)
 		print(np.sum(totbkg),np.sum(new))
 		cxb=totbkg-new
 		if np.sum(cxb)>0.:

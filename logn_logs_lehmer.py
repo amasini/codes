@@ -28,7 +28,7 @@ def dnds(s):
 
 def dnds_k(s): # logn-logs by Kenter+05 for Xbootes
     n=[]
-    k,fb,b1,b2=562.20,8.1e-15,1.34,2.35 #full band Lehmer
+    k,fb,b1,b2=674.64,8.1e-15,1.34,2.35 #full band Lehmer x1.2
     #k,fb,b1,b2=129,8.2e-15,1.74,2.60 #0.5-2.0 keV band Kenter
     for i in range(len(s)):
         if s[i] <= fb:
@@ -55,7 +55,7 @@ def dnds_g(s): # logn-logs by Georgakakis+08 for combined fields
             n.append(k*1e16*(fb/1.e-14)**(b2-b1)*(s[i]/1.e-14)**(-b2))
     return n
 
-wd='/Users/alberto/Desktop/'
+wd='/Users/alberto/Desktop/XBOOTES/'
 
 flux=np.logspace(np.log10(5e-17),np.log10(1e-12),101) #this is the full band flux
 centers0=list((flux[i+1]+flux[i])/2 for i in range(0,len(flux)-1))
@@ -66,9 +66,9 @@ dnds_k=dnds_k(centers0) #Kenter
 dnds_g=dnds_g(centers0) #Georgakakis
 	
 #Write file with sources
-w=open(wd+'poiss_rand_soft_lehmer.reg','w')
-w2=open(wd+'poiss_rand_soft_lehmer.dat','w')
-w2.write('Full flux\tRA\tDEC\n')
+w=open(wd+'poiss_rand_todelete.reg','w')
+w2=open(wd+'poiss_rand_todelete.dat','w')
+w2.write('Hard flux\tRA\tDEC\n')
 #choose rectangular area of 4x3.5 deg2 centered on the center of the field
 (minra,maxra)=(215.82,220.1)
 (minde,maxde)=(32.2,36.2)
@@ -125,10 +125,14 @@ ncum_g=list(reversed(np.cumsum(list(reversed(dn_g)))))
 #cf=1.351 #from 2-10 to 0.5-7, Gamma=1.8
 #civano_f=civano_f*cf 
 
+#take soft lehmer logn-logs from file
+(lehmer_f,lehmer_ns)=np.genfromtxt(wd+'logn-logs_lehmer_soft.dat',unpack=True)
+
 #make the plots
 f,ax1=plt.subplots(1,1)
-ax1.plot(centers0,ncum,'r-',linewidth=2,label='Lehmer+12 X1.2 0.5-7 keV')
-ax1.plot(centers0,ncum_k,'g-',linewidth=2,label='Lehmer+05 0.5-7 keV')
+ax1.plot(centers0,ncum,'r-',linewidth=2,label='Lehmer+12 0.5-2 keV')
+ax1.plot(centers0,ncum_k,'g-',linewidth=2,label='Lehmer+12 0.5-7 X1.2 keV')
+ax1.plot(lehmer_f,lehmer_ns,'c-',linewidth=2,label='Lehmer+12 0.5-2 keV')
 #ax1.plot(centers0,ncum_g,'c-',linewidth=2,label='Georgakakis+08 0.5-10 keV')
 #ax1.plot(civano_f,civano_ns,'b*',ms=15,label=r'Civano+06 2-10 keV, $\Gamma=1.8$')
 #ax1.plot(centers0,ncum_b,'b-',linewidth=2,label='Brandt+01 0.5-2 keV')
@@ -137,7 +141,7 @@ ax1.set_xlabel('S [cgs]')
 ax1.set_ylabel(r'N(>S) [deg$^-2$]')
 ax1.set_xscale('log')
 ax1.set_yscale('log')
-ax1.axis([5e-18,1e-13,5,1e5])
+ax1.axis([5e-17,1e-13,5,1e5])
 ax1.legend()
 plt.tight_layout()
 plt.show()

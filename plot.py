@@ -10,7 +10,59 @@ from scipy.stats import poisson
 import subprocess as s
 
 wd='/Users/alberto/Desktop/XBOOTES/'
+
+cut=np.logspace(np.log10(1e-4),np.log10(1e-2),10)
+cut2=np.logspace(np.log10(1e-5),np.log10(1e-4),10)
+
+sp_frac=np.array([41./3999.,58./4145.,68./4288.,83./4437.,98./4571.,113./4677.,131./4780.,146./4878.,169./4974.,191./5039.])*100.
+sp_frac_f=np.array([95./6345.,118./6526.,147./6691.,175./6854.,198./6988.,223./7100.,259./7230.,292./7351.,336/7463.,373./7547.])*100.
+sp_frac_f2=np.array([42./5579.,47./5665.,50./5741.,56./5812.,59./5879.,64./5985.,71./6073.,81./6176.,90/6257.,95./6345.])*100.
+
+plt.figure()
+plt.plot(cut,sp_frac_f,'k-')
+plt.plot(cut,sp_frac_f,'go')
+plt.plot(cut2,sp_frac_f2,'k-')
+plt.plot(cut2,sp_frac_f2,'go',label='Full band')
+
+plt.plot(cut,sp_frac,'k-')
+plt.plot(cut,sp_frac,'ro',label='Hard band')
+
+plt.axhline(y=1.0)
+plt.axhline(y=3.0)
+plt.xscale('log')
+plt.xlabel('Prob cut')
+plt.ylabel('Sp fraction (%)')
+plt.legend()
+plt.tight_layout()
+plt.show()
+sys.exit()
+
 '''
+cat=fits.open(wd+'mosaic_soft_cat1_3.fits')
+ra=cat[1].data['RA']
+dec=cat[1].data['DEC']
+prob=cat[1].data['PROB']
+flux=cat[1].data['FLUX']
+r90=cat[1].data['AV_R90']
+
+print(len(ra))
+print(len(ra[prob<=1e-3]))
+print(len(ra[prob<=1e-4]))
+sys.exit()
+
+w=open(wd+'cdwfs_soft_cat1_3.reg','w')
+for i in range(len(ra)):
+	w.write('circle('+str(ra[i])+'d, '+str(dec[i])+'d, '+str(r90[i])+'\") #color=yellow \n')
+w.close()
+
+plt.figure()
+plt.plot(prob,flux,'k.')
+plt.xscale('log')
+plt.yscale('log')
+plt.show()
+sys.exit()
+
+
 obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str')
 for i in range(len(obsid)):
 	if len(obsid[i]) == 4:
@@ -23,7 +75,7 @@ for i in range(len(obsid)):
 	
 print('Done')
 sys.exit()
-'''
+
 (ra,dec,flux)=np.genfromtxt(wd+'cdwfs_broad_sim_poiss_matched.dat',unpack=True,skip_header=1)
 bins=np.logspace(np.log10(5e-17),np.log10(9e-13),100)
 a2,b2=np.histogram(flux,bins=bins)
@@ -40,7 +92,7 @@ for j in range(len(ra)):
 	print(ra[j],dec[j],flux[j])
 w.close()
 sys.exit()
-'''
+
 N=np.genfromtxt(wd+'wav_xbootes_singleacis_5e-5/xbootes_Nsources_3.dat',unpack=True,usecols=0)
 
 r = poisson.rvs(35.07, size=126)
@@ -56,28 +108,28 @@ plt.hist(r,bins=int(bins),histtype='step',alpha=0.5)
 plt.show()
 sys.exit()
 '''
-
+band='hard'
 #cat=fits.open(wd+'cdwfs_broad_cat0.fits')
 #cat=fits.open(wd+'murray_sens/xbootes_unique_2.fits')
 #cat=fits.open(wd+'murray_sens/xbootes_broad_cat0.fits')
-cat=fits.open(wd+'mosaic_broad_sim_poiss_cat0_3.fits') #7881 SIMULATIONS [#7211 sources] BLUE
+cat=fits.open(wd+'mosaic_'+band+'_sim_poiss_cat0_3.fits') #7881 SIMULATIONS [#7211 sources] BLUE
 ra=cat[1].data['RA']
 dec=cat[1].data['DEC']
-detml=cat[1].data['DETML']
+prob=cat[1].data['PROB']
 net=cat[1].data['NET']
 
-catb=fits.open(wd+'mosaic_broad_cat0_3.fits') #8800 sources RED
+catb=fits.open(wd+'mosaic_'+band+'_cat0_3.fits') #8800 sources RED
 rab=catb[1].data['RA']
 decb=catb[1].data['DEC']
-detmlb=catb[1].data['DETML']
+probb=catb[1].data['PROB']
 netb=catb[1].data['NET']
 #$r=cat[1].data['AV_R90']
 #cts=cat[1].data['NET']
 #flux=cat[1].data['FLUX']
 
 #inpflux=cat[1].data['CTRP_FLUX']
-prob=np.e**(-detml)
-probb=np.e**(-detmlb)
+#prob=np.e**(-detml)
+#probb=np.e**(-detmlb)
 print(len(ra[net>200.]))
 net2=net[net<200]
 prob2=prob[net<200]
