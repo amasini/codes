@@ -15,7 +15,7 @@ cat1=fits.open(wd+'xbootes_kenter_cat0.fits')
 #cat1=fits.open(wd+'murray_sens/xbootes_broad_cat0_3.fits')
 ra_k=cat1[1].data['RA']
 dec_k=cat1[1].data['DEC']
-cts_full=cat1[1].data['CTS_FULL']
+cts_full=cat1[1].data['TOT']
 
 
 #w=open(wd+'murray_sens/xbootes_kenter_cat0.reg','w')

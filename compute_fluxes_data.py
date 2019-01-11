@@ -17,22 +17,22 @@ def distance(pointa, pointb):
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600.)**2 +((pointa[1]-pointb[1])*3600.)**2)
 
 wd='/Users/alberto/Desktop/XBOOTES/'
-band='soft'
-band2='0.5to2'
-bandbkg='0.5-2' # this is just for the soft band, use 'broad' and 'hard' for the other bands
+band='hard'
+band2='2to7'
+bandbkg='hard' # this is just for the soft band, use 'broad' and 'hard' for the other bands
 
 if band=='broad':
-	cf=1.825E-11
+	cf=1./5.392E+10
 elif band=='soft':
-	cf=1.632E-11
+	cf=1./6.758E+10
 elif band=='hard':
-	cf=2.016E-11
+	cf=1./4.721E+10
 t_in=time.time()
 
 mask=[]
 #take catalog of detected sources
 #dat=fits.open(wd+'chunks_of_mosaics_fullres/out_'+band+'_0-1-2-3-4-5_dat.fits')
-dat=fits.open(wd+'mosaic_'+band+'_sim_poiss_src_3.fits')
+dat=fits.open(wd+'sim_all/mosaic_'+band+'_sim_poiss_src_3.fits')
 src_ra=dat[1].data['RA']
 src_dec=dat[1].data['DEC']
 src_sign=dat[1].data['SRC_SIGNIFICANCE']
@@ -111,7 +111,7 @@ for i in range(len(src_ra)):
 		
 		#extract counts and background using r90
 		#imagemap=wd+'data/'+obs+'/repro_new_asol/acisf'+stem+'_repro_'+band2+'keV.img'
-		imagemap=wd+'sim_'+band+'/acisf'+stem+'_sim_poiss_bitpix-64.fits'
+		imagemap=wd+'sim_all/acisf'+stem+'_'+band+'_sim_poiss_bitpix-64.fits'
 		
 		backmap=wd+'data/'+obs+'/repro_new_asol/out/acisf'+stem+'_'+bandbkg+'_bkgmap.fits'
 		s.call('pset dmextract infile="'+imagemap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
@@ -152,7 +152,7 @@ for i in range(len(src_ra)):
 
 #write catalog
 cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_cts,out_exp,out_cr,out_flux],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','EXP','CR','FLUX'))
-cat.write(wd+'mosaic_'+band+'_sim_poiss_cat0_3.fits',format='fits',overwrite=True)
+cat.write(wd+'sim_all/mosaic_'+band+'_sim_poiss_cat0_3.fits',format='fits',overwrite=True)
 
 t_out=time.time()
 print((t_out-t_in)/60.,'Minutes for the loop')
