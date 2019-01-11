@@ -27,14 +27,14 @@ for i in range(len(obs)):
     w.write('circle('+str(ra)+'d,'+str(dec)+'d,3\") #text={'+obs[i]+'}\n')
 w.close()
 '''
-for band in ['hard']:
+for band in ['broad','soft','hard']:
 	#start from 4221 in a 7200x7200 square
 	w=open(wd+'commands_r90.xco','w')
 	#w2=open(wd+'commands_bkg.xco','w')
 	#w3=open(wd+'commands_exp.xco','w')
 	
 	#w.write('read/fits/size=7200 '+wd+'data/4221/repro_new_asol/acisf04221_repro_'+band+'keV_4rebinned.img\n')
-	w.write('read/fits/size=7200/rebin=4 '+wd+'sim_'+band+'/acisf04221_sim_poiss.fits\n')
+	w.write('read/fits/size=7200/rebin=4 '+wd+'sim_all/acisf04221_'+band+'_sim_poiss.fits\n')
 	#w.write('read/fits/size=7200/rebin=4 '+wd+'psfmaps/04221_r90-x-expo.fits\n')
 	#w2.write('read/fits/size=7200/rebin=4 '+wd+'data/4221/repro_new_asol/out/acisf04221_'+band+'_bkgmap.fits\n')
 	#w3.write('read/fits/size=7200/rebin=4 '+wd+'data/4221/repro_new_asol/out/acisf04221_'+band+'_expomap.fits\n')
@@ -56,7 +56,7 @@ for band in ['hard']:
 			stem=obs[i]
 		if obs[i]!='4221':
 			#w.write('read/fits '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_'+band+'keV_4rebinned.img\n')			
-			w.write('read/fits/rebin=4 '+wd+'sim_'+band+'/acisf'+stem+'_sim_poiss.fits\n')
+			w.write('read/fits/rebin=4 '+wd+'sim_all/acisf'+stem+'_'+band+'_sim_poiss.fits\n')
 			#w.write('read/fits/rebin=4 '+wd+'psfmaps/'+stem+'_r90-x-expo.fits\n')
 			#w2.write('read/fits/rebin=4 '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band+'_bkgmap.fits\n')
 			#w3.write('read/fits/rebin=4 '+wd+dirs[i]+'/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band+'_expomap.fits\n')
@@ -75,18 +75,18 @@ for band in ['hard']:
 			
 
 	if band =='soft':
-		w.write('write/fits '+wd+'mosaic_soft_sim_poiss_4rebinned.fits\n')
+		w.write('write/fits '+wd+'sim_all/mosaic_soft_sim_poiss_4rebinned.fits\n')
 		#w2.write('write/fits '+wd+'mosaic_soft_bkgmap_4rebinned.fits\n')
 		#w3.write('write/fits '+wd+'mosaic_soft_expomap_4rebinned.fits\n')
 	elif band =='hard':
 		#pass
-		w.write('write/fits '+wd+'mosaic_hard_sim_poiss_4rebinned.fits\n')
+		w.write('write/fits '+wd+'sim_all/mosaic_hard_sim_poiss_4rebinned.fits\n')
 		#w2.write('write/fits '+wd+'mosaic_hard_bkgmap_4rebinned.fits\n')
 		#w3.write('write/fits '+wd+'mosaic_hard_expomap_4rebinned.fits\n')
 	else:
-		pass
+		#pass
 		#w2.write('write/fits '+wd+'mosaic_'+band+'_bkgmap_4rebinned.fits\n')
-		#w.write('write/fits '+wd+'murray_sens/mosaic_broad_4rebinned.fits\n')
+		w.write('write/fits '+wd+'sim_all/mosaic_broad_sim_poiss_4rebinned.fits\n')
 		#w.write('write/fits '+wd+'mosaic_broad_sim_poiss_4rebinned.fits\n')
 		#w2.write('write/fits '+wd+'/murray_sens/mosaic_broad_bkgmap_4rebinned_murray.fits\n')
 		#w3.write('write/fits '+wd+'/murray_sens/mosaic_broad_expomap_4rebinned_murray.fits\n')

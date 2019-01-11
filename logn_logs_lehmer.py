@@ -102,7 +102,7 @@ w2.close()
 
 ##########################################################################
 #recover logn-logs of input sources written in poiss_rand.dat
-full_flux=np.genfromtxt(wd+'poiss_rand_soft_lehmer.dat',skip_header=1,usecols=0)
+full_flux=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',skip_header=1,usecols=0)
 bins00=np.logspace(np.log10(5e-17),np.log10(1e-12),101)
 centers00=list((bins00[i+1]+bins00[i])/2 for i in range(0,len(bins00)-1))
 

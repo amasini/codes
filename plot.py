@@ -11,6 +11,12 @@ import subprocess as s
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
+(mjd,bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,usecols=[1,2])
+plt.figure()
+plt.plot(mjd,bkg)
+plt.show()
+sys.exit()
+
 cut=np.logspace(np.log10(1e-4),np.log10(1e-2),10)
 cut2=np.logspace(np.log10(1e-5),np.log10(1e-4),10)
 
@@ -18,14 +24,37 @@ sp_frac=np.array([41./3999.,58./4145.,68./4288.,83./4437.,98./4571.,113./4677.,1
 sp_frac_f=np.array([95./6345.,118./6526.,147./6691.,175./6854.,198./6988.,223./7100.,259./7230.,292./7351.,336/7463.,373./7547.])*100.
 sp_frac_f2=np.array([42./5579.,47./5665.,50./5741.,56./5812.,59./5879.,64./5985.,71./6073.,81./6176.,90/6257.,95./6345.])*100.
 
-plt.figure()
-plt.plot(cut,sp_frac_f,'k-')
-plt.plot(cut,sp_frac_f,'go')
-plt.plot(cut2,sp_frac_f2,'k-')
-plt.plot(cut2,sp_frac_f2,'go',label='Full band')
+#sp_frac_f_new=np.array([16./5487.,25./5710.,34./5968.,50./6206.,68./6455.,89./6688.,118./6906.,147./7098.,171./7228.,201./7355.])*100.
+#sp_frac_s_new=np.array([8./3228.,10./3420.,17./3611.,25./3775.,43./3944.,62./4102.,78./4231.,96./4332.,116./4410.,132./4466.])*100.
+#sp_frac_h_new=np.array([15./3276.,22./3468.,33./3672.,43./3874.,57./4079.,69./4264.,95./4448.,119./4588.,157./4719.,192./4821.])*100.
 
-plt.plot(cut,sp_frac,'k-')
-plt.plot(cut,sp_frac,'ro',label='Hard band')
+cut3,sp_frac_f_new=np.genfromtxt(wd+'sim_all/sp_frac_broad.dat',unpack=True)
+sp_frac_s_new=np.genfromtxt(wd+'sim_all/sp_frac_soft.dat',unpack=True,usecols=1)
+sp_frac_h_new=np.genfromtxt(wd+'sim_all/sp_frac_hard.dat',unpack=True,usecols=1)
+
+#add last 3 points to the full band with cut4=np.logspace(np.log10(1e-2),np.log10(3e-2),3) 
+cut4=np.logspace(np.log10(1e-2),np.log10(3e-2),3)
+sp_frac_f_new2=np.array([201./7355.,234./7425.,258./7483.])*100
+
+plt.figure()
+'''
+plt.plot(cut,sp_frac_f,'k-',alpha=0.2)
+plt.plot(cut,sp_frac_f,'go',alpha=0.2)
+plt.plot(cut2,sp_frac_f2,'k-',alpha=0.2)
+plt.plot(cut2,sp_frac_f2,'go',alpha=0.2,label='Full band')
+plt.plot(cut,sp_frac,'k-',alpha=0.2)
+plt.plot(cut,sp_frac,'ro',alpha=0.2,label='Hard band')
+'''
+plt.plot(cut3,sp_frac_f_new,'k-')
+plt.plot(cut3,sp_frac_f_new,'yo',label='New full band')
+plt.plot(cut4,sp_frac_f_new2,'k-')
+plt.plot(cut4,sp_frac_f_new2,'yo')
+
+plt.plot(cut3,sp_frac_s_new,'k-')
+plt.plot(cut3,sp_frac_s_new,'co',label='New soft band')
+
+plt.plot(cut3,sp_frac_h_new,'k-')
+plt.plot(cut3,sp_frac_h_new,'mo',label='New hard band')
 
 plt.axhline(y=1.0)
 plt.axhline(y=3.0)
@@ -35,28 +64,87 @@ plt.ylabel('Sp fraction (%)')
 plt.legend()
 plt.tight_layout()
 plt.show()
-sys.exit()
-
 '''
-cat=fits.open(wd+'mosaic_soft_cat1_3.fits')
+d=np.genfromtxt(wd+'sim_all/cdwfs_broad_sim_poiss_matched.dat',unpack=True,usecols=5)
+d2=np.genfromtxt(wd+'sim_all/cdwfs_soft_sim_poiss_matched.dat',unpack=True,usecols=5)
+d3=np.genfromtxt(wd+'sim_all/cdwfs_hard_sim_poiss_matched.dat',unpack=True,usecols=5)
+print(np.median(d),np.percentile(d, 68),np.percentile(d, 90),np.percentile(d, 99))
+print(np.median(d2),np.percentile(d2, 68),np.percentile(d2, 90),np.percentile(d2, 99))
+print(np.median(d3),np.percentile(d3, 68),np.percentile(d3, 90),np.percentile(d3, 99))
+
+val,b=np.histogram(d,bins=50)
+val2,b2=np.histogram(d2,bins=50)
+val3,b3=np.histogram(d3,bins=50)
+val=val.astype(float)
+val2=val2.astype(float)
+val3=val3.astype(float)
+
+bincenters=list((b[i+1]+b[i])/2. for i in range(len(b)-1))
+bincenters2=list((b2[i+1]+b2[i])/2. for i in range(len(b)-1))
+bincenters3=list((b3[i+1]+b3[i])/2. for i in range(len(b)-1))
+
+cum=np.cumsum(val)/np.sum(val)
+cum2=np.cumsum(val2)/np.sum(val2)
+cum3=np.cumsum(val3)/np.sum(val3)
+
+plt.figure()
+plt.hist(d,bins=50,alpha=0.7,normed=True,label='Full')
+plt.hist(d2,bins=50,alpha=0.7,normed=True,label='Soft')
+plt.hist(d3,bins=50,alpha=0.7,normed=True,label='Hard')
+plt.xlabel('d ["]')
+plt.ylabel('N')
+plt.legend()
+plt.axis([-0.5,6,0,0.8])
+plt.tight_layout()
+plt.show()
+
+plt.figure()
+plt.plot(bincenters,cum,'k-')
+plt.plot(bincenters2,cum2,'r-')
+plt.plot(bincenters3,cum3,'b-')
+plt.axhline(y=0.68)
+plt.axhline(y=0.90)
+plt.axhline(y=0.99)
+plt.xlabel('d ["]')
+plt.ylabel('Cumulative fraction')
+plt.axis([0,6,0,1])
+plt.tight_layout()
+plt.show()
+'''
+band='hard'
+if band=='broad':
+	cut97=1.4e-2
+	cut99=2e-4
+elif band=='soft':
+	cut97=1e-2
+	cut99=2e-4
+elif band=='hard':
+	cut97=3.5e-3
+	cut99=1e-4
+
+cat=fits.open(wd+'mosaic_'+band+'_cat1_3.fits')
 ra=cat[1].data['RA']
 dec=cat[1].data['DEC']
 prob=cat[1].data['PROB']
 flux=cat[1].data['FLUX']
 r90=cat[1].data['AV_R90']
+cts=cat[1].data['TOT']
 
-print(len(ra))
-print(len(ra[prob<=1e-3]))
-print(len(ra[prob<=1e-4]))
-sys.exit()
+print(band,len(ra))
+print(len(ra[prob<=cut97]))
+print(len(ra[prob<=cut99]))
 
-w=open(wd+'cdwfs_soft_cat1_3.reg','w')
+ra=ra[prob<=cut97]
+dec=dec[prob<=cut97]
+r90=r90[prob<=cut97]
+
+w=open(wd+'cdwfs_'+band+'_cat1_3.reg','w')
 for i in range(len(ra)):
 	w.write('circle('+str(ra[i])+'d, '+str(dec[i])+'d, '+str(r90[i])+'\") #color=yellow \n')
 w.close()
 
 plt.figure()
-plt.plot(prob,flux,'k.')
+plt.plot(prob,cts,'k.')
 plt.xscale('log')
 plt.yscale('log')
 plt.show()
@@ -108,11 +196,11 @@ plt.hist(r,bins=int(bins),histtype='step',alpha=0.5)
 plt.show()
 sys.exit()
 '''
-band='hard'
+band='soft'
 #cat=fits.open(wd+'cdwfs_broad_cat0.fits')
 #cat=fits.open(wd+'murray_sens/xbootes_unique_2.fits')
 #cat=fits.open(wd+'murray_sens/xbootes_broad_cat0.fits')
-cat=fits.open(wd+'mosaic_'+band+'_sim_poiss_cat0_3.fits') #7881 SIMULATIONS [#7211 sources] BLUE
+cat=fits.open(wd+'sim_all/mosaic_'+band+'_sim_poiss_cat0_3.fits') #7881 SIMULATIONS [#7211 sources] BLUE
 ra=cat[1].data['RA']
 dec=cat[1].data['DEC']
 prob=cat[1].data['PROB']
@@ -122,6 +210,7 @@ catb=fits.open(wd+'mosaic_'+band+'_cat0_3.fits') #8800 sources RED
 rab=catb[1].data['RA']
 decb=catb[1].data['DEC']
 probb=catb[1].data['PROB']
+#detmlb=catb[1].data['DETML']
 netb=catb[1].data['NET']
 #$r=cat[1].data['AV_R90']
 #cts=cat[1].data['NET']
@@ -130,7 +219,10 @@ netb=catb[1].data['NET']
 #inpflux=cat[1].data['CTRP_FLUX']
 #prob=np.e**(-detml)
 #probb=np.e**(-detmlb)
-print(len(ra[net>200.]))
+
+print(len(ra[prob<1e-4]))
+print(len(rab[probb<1e-4]))
+
 net2=net[net<200]
 prob2=prob[net<200]
 
@@ -254,4 +346,3 @@ plt.axvline(x=8,color='green')
 plt.tight_layout()
 plt.show()
 #plt.savefig(wd+'simul_broad_flux_flux.pdf',format='pdf',dpi=1000)
-'''
