@@ -3,11 +3,11 @@ import sys
 import subprocess as s
 from astropy.io import fits
 
-wd='/Users/alberto/Desktop/XBOOTES/'
+wd="/Users/alberto/Box Sync/XBOOTES/"
 
-obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True, usecols=1, dtype='str')#
-#obsid=['10450']
-band=['0.5-2']
+#obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True, usecols=1, dtype='str')#
+obsid=['19652']
+band=['0.5-7']
 
 R=0.1375 #radius of FoV in degrees
 dmax=0.0416667 #degrees; 2.5 arcmin
@@ -46,11 +46,12 @@ for i in range(len(obsid)):
                  
 	bkg912=np.median(bkg_sur_bri)
 	e_bkg912=np.std(bkg_sur_bri)
-	#print('='*15)
-	#print('The median 9-12 keV bkg surface brightness for '+obsid[i]+' is')
-	#print(bkg912,e_bkg912)
-	#print('='*15)
+	print('='*15)
+	print('The median 9-12 keV bkg surface brightness for '+obsid[i]+' is')
+	print(bkg912,e_bkg912)
+	print('='*15)
 	#w.write(obsid[i]+' \t '+str(bkg912)+' \t '+str(e_bkg912)+'\n')
+	sys.exit()
 
 	for j in range(len(band)):
 		if band[j] == 'broad':
