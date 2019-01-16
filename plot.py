@@ -11,9 +11,10 @@ import subprocess as s
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-(mjd,bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,usecols=[1,2])
+(mjd,bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,usecols=[1,2],skip_header=1)
 plt.figure()
-plt.plot(mjd,bkg)
+plt.plot(mjd,bkg,'r.')
+plt.yscale('log')
 plt.show()
 sys.exit()
 

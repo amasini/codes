@@ -18,30 +18,29 @@ for i in range(len(obs)):
 		stem='00'+obs[i]
 	
 	print(obs[i])
-	
+	'''
 	s.call('punlearn dmextract',shell=True)
 	# Create the LC
 	s.call('dmextract infile="'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV.fits[bin time=::100]" opt="ltc1" outfile="'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_05to7keV.fits" clobber=yes',shell=True)
 	
 	# Filter the LC with a default 3sigma clipping and creates GTi file
 	#s.call('deflare "'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_9to12keV.fits" outfile="'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_9to12keV.gti" method=sigma plot=false verbose=0',shell=True)
-	if obs[i] == 'AAA':
-		lc_sigma_clip(wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_9to12keV.fits', outfile=wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_9to12keV.gti', plot=False, verbose=0)
+	if obs[i] != '19652':
+		lc_sigma_clip(wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_05to7keV.fits', outfile=wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_05to7keV.gti', plot=False, verbose=0)
 	else:
 		lc_sigma_clip(wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_05to7keV.fits', outfile=wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_05to7keV.gti')
-	# Filter the original 9-12 keV file with the GTI file
-	#s.call('dmcopy "'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_9to12keV.fits[@'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_9to12keV.gti]" '+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_9to12keV_cl.fits clobber=yes',shell=True)
+	# Filter the original file with the GTI file
+	s.call('dmcopy "'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV.fits[@'+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_lc_05to7keV.gti]" '+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_cl.fits clobber=yes',shell=True)
 	'''
 	# Compare before/after LIVETIMEs
-	res=s.check_output('dmkeypar '+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_9to12keV.fits LIVETIME echo=yes',shell=True)
+	res=s.check_output('dmkeypar '+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV.fits LIVETIME echo=yes',shell=True)
 	l0.append(float(res))
 	
-	res=s.check_output('dmkeypar '+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_9to12keV_cl.fits LIVETIME echo=yes',shell=True)
+	res=s.check_output('dmkeypar '+wd+'/data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_cl.fits LIVETIME echo=yes',shell=True)
 	l1.append(float(res))
-	'''
-'''
+	
+
 sum0=np.sum(np.array(l0))
 sum1=np.sum(np.array(l1))
 print('Total exposure time (in Ms) of CDWFS before, after, difference (in ks)')
 print(sum0/1e6,sum1/1e6,(sum0-sum1)/1e3)
-'''

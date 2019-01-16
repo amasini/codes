@@ -54,7 +54,7 @@ for i in range(len(obsid)):
 	#print('The median 9-12 keV bkg surface brightness for '+obsid[i]+' is')
 	#print(bkg912,e_bkg912)
 	#print('='*15)
-	w.write(obsid[i]+' \t '+mjd+' \t '+str(bkg912)+' \t '+str(e_bkg912)+'\n')
+	w.write(obsid[i]+' \t '+str(float(mjd))+' \t '+str(bkg912)+' \t '+str(e_bkg912)+'\n')
 
 	# Creates the bkgmap from the 9-12 kev one
 	for j in range(len(band)):

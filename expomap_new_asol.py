@@ -23,11 +23,11 @@ for i in range(len(obsid)):
 		stem=obsid[i]
 	
 	#produce exposure map in seconds NOT vignetting-corrected
-	s.call('fluximage \"'+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_evt2.fits[events][ccd_id<4]\" '+wd+'data/'+obsid[i]+'/repro_new_asol/out/ units=time bands="0.5:2:1.5" binsize=1 clobber=yes',shell=True)
+	s.call('fluximage \"'+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_cl.fits[events][ccd_id<4]\" '+wd+'data/'+obsid[i]+'/repro_new_asol/out/ units=time bands="0.5:2:1.5" binsize=1 clobber=yes',shell=True)
 	
-	#produce eff ara map, plus exposure map in default units vignetting-corrected
-	s.call('fluximage \"'+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_evt2.fits[events][ccd_id<4]\" '+wd+'data/'+obsid[i]+'/repro_new_asol/eff_area units=area bands="0.5:2:1.5" binsize=1 clobber=yes',shell=True)
-	s.call('fluximage \"'+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_evt2.fits[events][ccd_id<4]\" '+wd+'data/'+obsid[i]+'/repro_new_asol/expo bands="0.5:2:1.5" binsize=1 clobber=yes',shell=True)
+	#produce eff area map, plus exposure map in default units vignetting-corrected
+	s.call('fluximage \"'+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_cl.fits[events][ccd_id<4]\" '+wd+'data/'+obsid[i]+'/repro_new_asol/eff_area units=area bands="0.5:2:1.5" binsize=1 clobber=yes',shell=True)
+	s.call('fluximage \"'+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_cl.fits[events][ccd_id<4]\" '+wd+'data/'+obsid[i]+'/repro_new_asol/expo bands="0.5:2:1.5" binsize=1 clobber=yes',shell=True)
 	
 	#divide the default expomap by the maximum eff area to get the vign corrected expomap in seconds
 	for band in ['0.5-2']:

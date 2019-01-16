@@ -11,12 +11,12 @@ def distance(pointa, pointb):
 
 wd="/Users/alberto/Desktop/XBOOTES/"
 
-band='broad'
-band2='broad'
+band='hard'
+band2='hard'
 
 obs=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str') # List of observations
 (cts_f,cts_s,cts_h)=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=[2,3,4],dtype='float') # Total 0.5-7 keV counts
-
+'''
 cutf,cuts,cuth=1.4e-2,1e-2,3.5e-3 # These are the probability cuts in F,S,H bands at 97% rel -> 9240 srcs
 # Take the catalog of detected sources (cut at 97% reliability)
 cat=fits.open('/Users/alberto/Desktop/prova_cdwfs_merged_cat0.fits')
@@ -73,8 +73,8 @@ for j in range(len(ra_cl)):
 ra_src=np.array(ra_src)
 dec_src=np.array(dec_src)
 r90_src=np.array(r90_src)
-
-dev=[]
+#'''
+dev,livetime=[],[]
 for i in range(len(obs)):
 	if len(obs[i]) == 5:
 		stem=obs[i]
@@ -82,7 +82,7 @@ for i in range(len(obs)):
 		stem='0'+obs[i]
 	elif len(obs[i]) == 3:
 		stem='00'+obs[i]
-
+	'''
 	sources_ra,sources_dec,sources_r90,distances=[],[],[],[]
 	ra_aim=s.check_output('dmkeypar '+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img RA_PNT echo=yes',shell=True)
 	dec_aim=s.check_output('dmkeypar '+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img DEC_PNT echo=yes',shell=True)
@@ -92,7 +92,7 @@ for i in range(len(obs)):
 	
 	# Create region file with center of field of radius 6'
 	w=open(wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src.reg','w')
-	w.write('circle('+str(ra_aim)+'d,'+str(dec_aim)+'d,860\")\n')
+	w.write('circle('+str(ra_aim)+'d,'+str(dec_aim)+'d,360\")\n')
 	w.close()
 	
 	my_obs = FOVFiles(wd+'data/'+obs[i]+'/repro_new_asol/fov_acisI.fits')
@@ -111,56 +111,55 @@ for i in range(len(obs)):
 	for k in range(len(sources_ra)):
 		src=[sources_ra[k],sources_dec[k]]
 		aim=[ra_aim,dec_aim]
-		if distance(aim,src) <= 3600.:
+		if distance(aim,src) <= 360.:
 			radius=2.0*sources_r90[k]
 			w.write('circle('+str(sources_ra[k])+'d,'+str(sources_dec[k])+'d,'+str(radius)+'\")\n')
 	w.close()
-	
+	#'''
+	# Create now appropriate regionfile
+	w=open(wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src-bkg.reg','w')
+	file1=open(wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src.reg','r')
+	for line in file1:
+		w.write(line)
+	file1.close()
+	file2=open(wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_bkg.reg','r')
+	for line in file2:
+		w.write('-'+line)
+	file2.close()
+	w.close()
 	# DMCOPY
 	#s.call('dmcopy infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img[exclude sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_bkg.reg)]" outfile=excised.fits clobber=yes',shell=True)
 	#sys.exit()
 	
 	s.call('punlearn dmextract',shell=True)
 	if band=='broad':
-		s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src.reg)]" bkg="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_bkg.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
+		s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src-bkg.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
 		#s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_prova_todelete.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
 		#s.call('dmextract "'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img" out2.fits bkg="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_prova_todelete.reg)]"',shell=True)
 	elif band=='soft':
 		#s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to2keV.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
-		s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to2keV.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src.reg)]" bkg="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to2keV.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_bkg.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
+		s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to2keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src-bkg.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
 	elif band=='hard':
 		#s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_2to7keV.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
-		s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_2to7keV.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src.reg)]" bkg="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_2to7keV.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_bkg.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
-	src_cts=s.check_output('dmlist "out2.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
-	src_area=s.check_output('dmlist "out2.fits[cols AREA]" data,clean | grep -v AREA',shell=True)
-	bkg_cts=s.check_output('dmlist "out2.fits[cols BG_COUNTS]" data,clean | grep -v COUNTS',shell=True)
-	bkg_area=s.check_output('dmlist "out2.fits[cols BG_AREA]" data,clean | grep -v AREA',shell=True)
-	print(src_cts,src_area,bkg_cts,bkg_area)
-	cts_new=(float(src_cts)-float(bkg_cts))*(2048**2/(2048**2-float(bkg_area)))
-	val=cts_new/(2094**2*float(exp))
+		s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_2to7keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_'+band+'_src-bkg.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
+	#src_cts=s.check_output('dmlist "out2.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
+	#src_area=s.check_output('dmlist "out2.fits[cols AREA]" data,clean | grep -v AREA',shell=True)
+	#bkg_cts=s.check_output('dmlist "out2.fits[cols BG_COUNTS]" data,clean | grep -v COUNTS',shell=True)
+	#bkg_area=s.check_output('dmlist "out2.fits[cols BG_AREA]" data,clean | grep -v AREA',shell=True)
+	#print(src_cts,src_area,bkg_cts,bkg_area)
+	#cts_new=(float(src_cts)-float(bkg_cts))/(float(src_area)-float(bkg_area))
+	cts_new=s.check_output('dmlist "out2.fits[cols SUR_BRI]" data,clean | grep -v SUR_BRI',shell=True)
+	val=float(cts_new)/float(exp)
 	dat=fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/'+band2+'_thresh.expmap')
 	expo=dat[0].data
 	header=dat[0].header
 	new=expo*val
-	hdu0 = fits.PrimaryHDU(new,header=header)
-	hdu0.writeto('bkgmap_new.fits',overwrite=True)
-	#val=(float(src_cts)-float(bkg_cts))/((float(src_area)-float(bkg_area)))
-	
-	#print(val)
-	sys.exit()
-	
-	dat=fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/'+band2+'_thresh.expmap')
-	expo=dat[0].data
-	header=dat[0].header
-	dat.close()
-	#rescale expomap to build bkgmap
-	#expo[expo==0]=np.nan
-	#new=(expo*val)/expo
-	new=expo*val
-	#write bkgmap
 	hdu0 = fits.PrimaryHDU(new,header=header)
 	hdu0.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_new.fits',overwrite=True)
+	dat.close()
 	
+	#sys.exit()
+	#'''
 	bkgmap=fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap.fits')
 	bkg=bkgmap[0].data
 	bkgmap.close()
@@ -171,7 +170,8 @@ for i in range(len(obs)):
 	bkgmap2.close()
 	newback=np.sum(bkg2)
 	
-	x=(newback-oldback)/oldback
+	#x=(newback-oldback)/oldback
+	x=(newback-oldback)/np.sqrt(newback+oldback)
 	'''
 	if band=='broad':
 		x=(newback-oldback)/oldback
@@ -180,13 +180,22 @@ for i in range(len(obs)):
 	elif band=='hard':
 		x=(cts_h[i]-float(src_cts))*(2048.**2/(2048.**2-float(src_area)))
 	'''
-	if (x*100.) >= -30:
-		dev.append(x*100.)
-	print(obs[i],oldback,newback,x*100.)
+	#if (x*100.) >= -30:
+	dev.append(x)
+	livetime.append(float(exp)/1e3)
+	print(obs[i],oldback,newback,x)
 
 print(np.mean(dev),np.median(dev))
+#plt.figure()
+#plt.hist(dev,bins=20)
+#plt.show()
+
 plt.figure()
-plt.hist(dev,bins=20)
+plt.plot(livetime,dev,'ko')
+plt.axhline(y=0)
+plt.xlabel('Exposure time [ks]')
+plt.ylabel('New bkg deviation [sigma]')
+plt.xscale('log')
 plt.show()
 
 '''
