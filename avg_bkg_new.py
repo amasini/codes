@@ -8,10 +8,11 @@ from astropy.stats import sigma_clip
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-(old_bkg,old_e_bkg)=np.genfromtxt(wd+'avg_bkg.dat',unpack=True,skip_header=1,usecols=[2,3])
-old_obs=np.genfromtxt(wd+'avg_bkg.dat',unpack=True,skip_header=1,usecols=1,dtype='str')
-(bkg,e_bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,skip_header=1,usecols=[1,2])
+#(old_bkg,old_e_bkg)=np.genfromtxt(wd+'avg_bkg.dat',unpack=True,skip_header=1,usecols=[2,3])
+#old_obs=np.genfromtxt(wd+'avg_bkg.dat',unpack=True,skip_header=1,usecols=1,dtype='str')
+(mjd,bkg,e_bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,skip_header=1,usecols=[1,2,3])
 obs=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,skip_header=1,usecols=0,dtype='str')
+'''
 old_mjd,mjd=[],[]
 
 for i in range(len(old_obs)):
@@ -40,6 +41,7 @@ for j in range(len(obs)):
 mjd=np.array(mjd)
 #bkg=bkg[mjd>53000]
 #mjd=mjd[mjd>53000]
+'''
 
 T=11.0
 omega=(2*np.pi)/(365*T)
@@ -54,9 +56,9 @@ fig,ax=plt.subplots(1)
 ax.errorbar(mjd,bkg,yerr=e_bkg,color='red',fmt='.',label='After')
 ax.plot(fine_t, my_fit, 'k--',label='Sinusoidal T=11 yrs')
 ax.axvline(x=54800,linestyle='dotted',color='k')
-ax.annotate('Cycle 24 starts',xy=(54550,4e-7),rotation=90)
+ax.annotate('Cycle 24 starts',xy=(54550,2e-7),rotation=90)
 ax.axvline(x=56748,linestyle='dotted',color='k')
-ax.annotate('Cycle 24 maximum',xy=(56500,4e-7),rotation=90)
+ax.annotate('Cycle 24 maximum',xy=(56500,2e-7),rotation=90)
 ax.set_yscale('log')
 ax.set_xlabel('MJD')
 ax.set_ylabel(r'Bkg Surf Brightness (cts pixel$^{-2}$ s$^{-1}$)')

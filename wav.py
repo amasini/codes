@@ -32,6 +32,7 @@ for chunk_number in range(0,6):
 '''
 # WAVDETECT ON TOTAL MOSAIC 4X4 REBINNED
 #wavdetect infile=mosaic_broad_4rebinned.fits bkginput=mosaic_broad_bkgmap_4rebinned_murray.fits psffile= outfile=mosaic_broad_src_3.fits scellfile=out_scell.fits imagefile=out_ima.fits defnbkgfile=out_defnbkg.fits regfile=mosaic_broad_src_3.reg scales="1 2 4" sigthresh=5e-5 clobber=yes
+#wavdetect infile=mosaic_broad_4rebinned.fits bkginput=mosaic_broad_bkgmap_4rebinned.fits psffile= outfile=cdwfs_broad_src.fits scellfile=out_scell.fits imagefile=out_ima.fits defnbkgfile=out_defnbkg.fits regfile=cdwfs_broad_src.reg scales="1 2 4" sigthresh=5e-5 clobber=yes
 
 # WAVDETECT ON ALL 126 XBOOTES ACIS-I 4X4 BINNED IMAGES
 di='/Users/alberto/Desktop/XBOOTES/'

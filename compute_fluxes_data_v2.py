@@ -16,9 +16,8 @@ def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180.*np.pi)
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600.)**2 +((pointa[1]-pointb[1])*3600.)**2)
 
-wd="/Users/alberto/Box Sync/XBOOTES/"
+wd="/Users/alberto/Desktop/XBOOTES/"
 band='broad'
-band2='0.5to7'
 bandbkg='broad' # this is just for the soft band, use 'broad' and 'hard' for the other bands
 
 if band=='broad':
@@ -30,7 +29,7 @@ elif band=='hard':
 t_in=time.time()
 
 #take catalog of detected sources - output from wavdetect
-dat=fits.open(wd+'mosaic_'+band+'_src_3.fits')
+dat=fits.open(wd+'cdwfs_'+band+'_src.fits')
 src_ra=dat[1].data['RA']
 src_dec=dat[1].data['DEC']
 src_sign=dat[1].data['SRC_SIGNIFICANCE']
@@ -119,24 +118,24 @@ for i in range(len(src_ra)):
 
 	av_r90=np.sum(np.array(r)*np.array(exp))/np.sum(np.array(exp))
 	totexp=np.sum(np.array(exp))
-
+	
 	#extract counts and background using r90
-	imagemap=wd+'mosaic_'+band2+'_4rebinned_not-expo-corr.fits'
+	imagemap=wd+'mosaic_'+band+'_4rebinned.fits'
 	#imagemap=wd+'sim_'+band+'/acisf'+stem+'_sim_poiss_bitpix-64.fits'
 		
-	backmap=wd+'mosaic_'+band2+'_bkgmap_4rebinned.fits'
-	s.call('pset dmextract infile="'+imagemap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
-	s.call('dmextract',shell=True)
-	res=s.check_output('dmlist "counts.fits[cols COUNTS, BG_COUNTS]" data,clean | grep -v COUNTS > counts.dat', shell=True)
+	backmap=wd+'mosaic_'+band+'_bkgmap_4rebinned.fits'
+	s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
+	cts=s.check_output('dmlist "counts.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
+	bkg=s.check_output('dmlist "counts.fits[cols BG_COUNTS]" data,clean | grep -v BG_COUNTS',shell=True)
 	#(cts_i,bkg_i)=np.genfromtxt('counts.dat',unpack=True)
-	cts,bkg=res.splitlines()
+	#cts,bkg=res.splitlines()
 	cts,bkg=float(cts),float(bkg)
 	e_cts_p=1+np.sqrt(cts+0.75) # Gehrels+86 1sigma errors
 	e_cts_n=np.sqrt(cts-0.25)
 	e_bkg_p=1+np.sqrt(bkg+0.75)
 	e_bkg_n=np.sqrt(bkg-0.25)
 
-	print(cts,bkg)
+	print(src_ra[i], src_dec[i], cts,bkg)
 	sys.exit()
 	
 	prob=scipy.stats.distributions.poisson.pmf(cts,bkg)
@@ -172,7 +171,7 @@ for i in range(len(src_ra)):
 
 #write catalog
 cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET','e_NET','EXP','CR','E_CR','e_CR','FLUX','E_FLUX','e_FLUX'))
-cat.write(wd+'mosaic_'+band+'_cat0_3.fits',format='fits',overwrite=True)
+cat.write(wd+'cdwfs_'+band+'_cat0.fits',format='fits',overwrite=True)
 
 t_out=time.time()
 print((t_out-t_in)/60.,'Minutes for the loop')

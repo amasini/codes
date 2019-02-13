@@ -8,13 +8,122 @@ from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from scipy.stats import poisson
 import subprocess as s
+import scipy.special
+from scipy.integrate import quad
 
+def integrand(x,a):
+    return x**(-a+1)
+
+def gauss(x,mu,sigma):
+	g=np.exp(-(x-mu)**2/(2*sigma**2))
+	return g
+	
 wd='/Users/alberto/Desktop/XBOOTES/'
 
+gamma=np.arange(1.3,2.4,0.1)
+cf_f=[6.243,6.355,6.456,6.544,6.617,6.674,6.712,6.731,6.731,6.709,6.668]
+cf_s=[9.592,9.391,9.186,8.976,8.763,8.547,8.328,8.107,7.885,7.662,7.438]
+cf_h=[4.798,4.864,4.930,4.996,5.061,5.126,5.191,5.255,5.318,5.381,5.442]
+cf_f=np.array(cf_f)*1e10
+cf_s=np.array(cf_s)*1e10
+cf_h=np.array(cf_h)*1e10
+
+fluxrat_s=[0.3016,0.3295,0.3587,0.3890,0.4203,0.4524,0.4849,0.5176,0.5502,0.5825,0.6141]
+
+xvals = np.linspace(1.3, 2.3, 101)
+yinterp_f = np.interp(xvals, gamma, cf_f)
+yinterp_s = np.interp(xvals, gamma, cf_s)
+yinterp_h = np.interp(xvals, gamma, cf_h)
+
+fluxinterp_s = np.interp(xvals, gamma, fluxrat_s)
+
+mu=1.8
+sigma=0.2
+p=[]
+for ii in range(len(xvals)):
+	p.append(gauss(xvals[ii],mu,sigma))
+p=np.array(p)
+new=p/np.sum(p)
+#plt.figure()
+#plt.plot(xvals,new,'k-')
+#plt.axvline(mu)
+#plt.axvline(mu-sigma)
+#plt.axvline(mu+sigma)
+#plt.show()
+'''
+totcxb=[]
+for j in range(1000):
+	totcxb.append(np.random.choice(xvals, p=new))
+plt.figure()
+plt.hist(totcxb,bins=20)
+plt.show()
+'''
+
+#(full_flux,ra,dec)=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',unpack=True, skip_header=1,usecols=[0,1,2])
+#w=open(wd+'poiss_rand_lehmerx20_NEW.dat','w')
+#w.write('Full flux \t RA \t DEC \t Gamma\n')
+#for i in range(len(ra)):
+#	random_gamma=np.random.choice(xvals, p=new)
+#	w.write(str(full_flux[i])+' \t '+str(ra[i])+' \t '+str(dec[i])+' \t '+str(random_gamma)+'\n')
+#w.close()
+#sys.exit()
+
+#print(random_gamma,yinterp_f[xvals==random_gamma],yinterp_s[xvals==random_gamma],yinterp_h[xvals==random_gamma])
+#print(fluxinterp_s[xvals==random_gamma],1-fluxinterp_s[xvals==random_gamma])
+plt.figure()
+plt.plot(gamma, cf_f,'ko',label='Full')
+plt.plot(xvals, yinterp_f,'k--')
+plt.plot(gamma, cf_s,'go',label='Soft')
+plt.plot(xvals, yinterp_s,'g--')
+plt.plot(gamma, cf_h,'ro',label='Hard')
+plt.plot(xvals, yinterp_h,'r--')
+plt.xlabel('Gamma')
+plt.xlabel('Flux to CRate CF')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+plt.figure()
+plt.plot(gamma, fluxrat_s,'go',label='Soft')
+plt.plot(xvals, fluxinterp_s,'g--')
+#plt.plot(gamma, 1-fluxrat_s,'ro',label='Hard')
+#plt.plot(xvals, 1-fluxinterp_s,'r--')
+plt.xlabel('Gamma')
+plt.xlabel('Ratio to 0.5-7 keV flux')
+plt.legend()
+plt.tight_layout()
+plt.show()
+sys.exit()
+
+(apec,pl,exp)=np.genfromtxt(wd+'apec_cr_soft_with-gauss-line.dat',unpack=True, skip_header=1,usecols=[6,7,3])
+obs=np.genfromtxt(wd+'apec_cr_soft_with-gauss-line.dat',unpack=True, skip_header=1,usecols=0)
+ib=np.genfromtxt(wd+'IB_soft.dat',unpack=True, skip_header=1,usecols=2)
+
+cxb=pl-ib
+
+plt.figure()
+plt.plot(obs,cxb,'b.')
+plt.xscale('log')
+plt.show()
+
+'''
+obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str')
+for i in range(len(obsid)):
+	if len(obsid[i]) == 4:
+		stem='0'+obsid[i]
+	elif len(obsid[i]) == 3:
+		stem='00'+obsid[i]
+	elif len(obsid[i]) == 5:
+		stem=obsid[i]
+		
+	s.call('ds9 '+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img -scale log -scale mode 90 -zoom 0.65 -region '+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_broad_src-bkg.reg',shell=True)
+sys.exit()
+'''
 (mjd,bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,usecols=[1,2],skip_header=1)
 plt.figure()
-plt.plot(mjd,bkg,'r.')
-plt.yscale('log')
+plt.plot(mjd,cxb,'r.')
+#plt.plot(mjd,apec_sb,'g.')
+#plt.yscale('log')
 plt.show()
 sys.exit()
 
