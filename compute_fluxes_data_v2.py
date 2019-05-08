@@ -17,8 +17,8 @@ def distance(pointa, pointb):
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600.)**2 +((pointa[1]-pointb[1])*3600.)**2)
 
 wd="/Users/alberto/Desktop/XBOOTES/"
-band='broad'
-bandbkg='broad' # this is just for the soft band, use 'broad' and 'hard' for the other bands
+band='hard'
+bandbkg='hard' # this is just for the soft band, use 'broad' and 'hard' for the other bands
 
 if band=='broad':
 	cf=1.825E-11
@@ -124,7 +124,7 @@ for i in range(len(src_ra)):
 	#imagemap=wd+'sim_'+band+'/acisf'+stem+'_sim_poiss_bitpix-64.fits'
 		
 	backmap=wd+'mosaic_'+band+'_bkgmap_4rebinned.fits'
-	s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
+	s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
 	cts=s.check_output('dmlist "counts.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
 	bkg=s.check_output('dmlist "counts.fits[cols BG_COUNTS]" data,clean | grep -v BG_COUNTS',shell=True)
 	#(cts_i,bkg_i)=np.genfromtxt('counts.dat',unpack=True)
@@ -133,10 +133,13 @@ for i in range(len(src_ra)):
 	e_cts_p=1+np.sqrt(cts+0.75) # Gehrels+86 1sigma errors
 	e_cts_n=np.sqrt(cts-0.25)
 	e_bkg_p=1+np.sqrt(bkg+0.75)
-	e_bkg_n=np.sqrt(bkg-0.25)
+	if bkg >= 0.25:
+		e_bkg_n=np.sqrt(bkg-0.25)
+	else:
+		e_bkg_n=0
 
-	print(src_ra[i], src_dec[i], cts,bkg)
-	sys.exit()
+	#print(src_ra[i], src_dec[i], cts,bkg)
+	#sys.exit()
 	
 	prob=scipy.stats.distributions.poisson.pmf(cts,bkg)
 	#det=-(np.log(prob))
@@ -170,7 +173,7 @@ for i in range(len(src_ra)):
 	out_efluxn.append(e_flux_n)
 
 #write catalog
-cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET','e_NET','EXP','CR','E_CR','e_CR','FLUX','E_FLUX','e_FLUX'))
+cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
 cat.write(wd+'cdwfs_'+band+'_cat0.fits',format='fits',overwrite=True)
 
 t_out=time.time()

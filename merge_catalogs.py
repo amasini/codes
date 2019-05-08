@@ -13,10 +13,10 @@ def distance(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-cutf,cuts,cuth=1.4e-2,1e-2,3.5e-3 # These are the probability cuts in F,S,H bands at 97% rel
+#cutf,cuts,cuth=1.4e-2,1e-2,3.5e-3 # These are the probability cuts in F,S,H bands at 97% rel
 
 # Open full band catalog (no multiple, output from clean_multiple_sources.py)
-fcat=fits.open(wd+'mosaic_broad_cat1_3.fits')
+fcat=fits.open(wd+'cdwfs_broad_cat1.fits')
 raf=fcat[1].data['RA']
 decf=fcat[1].data['DEC']
 r90f=fcat[1].data['AV_R90']
@@ -25,7 +25,7 @@ filef=fcat[1].data
 fcat.close()
 
 # Open soft band catalog (no multiple)
-scat=fits.open(wd+'mosaic_soft_cat1_3.fits')
+scat=fits.open(wd+'cdwfs_soft_cat1.fits')
 ras=scat[1].data['RA']
 decs=scat[1].data['DEC']
 r90s=scat[1].data['AV_R90']
@@ -63,7 +63,7 @@ for lines in range(len(files)):
 		fints.append([np.zeros(len(filef[0])),files[lines]])
 
 # Open hard band catalog (no multiple)
-hcat=fits.open(wd+'mosaic_hard_cat1_3.fits')
+hcat=fits.open(wd+'cdwfs_hard_cat1.fits')
 rah=hcat[1].data['RA']
 dech=hcat[1].data['DEC']
 r90h=hcat[1].data['AV_R90']
@@ -101,13 +101,14 @@ for lineh in range(len(fileh)):
 
 print((time.time()-t_start)/60.,'minutes')
 print(len(fintsinth))
-print(fintsinth[0])
-print(fintsinth[9669])
-print(fintsinth[9670])
+#print(fintsinth[0])
+#print(fintsinth[9669])
+#print(fintsinth[9670])
 #for i in range(len(fintsinth)):
 #	print(i, fintsinth[i][0][0][0])
-sys.exit()
-print(fintsinth[0][0][0][0])
+#sys.exit()
+
+#print(fintsinth[0][0][0][0])
 '''
 new=[]
 a,b,c=[],[],[]
@@ -117,9 +118,9 @@ for i in range(len(fintsinth)):
 	c.append(fintsinth[i][1])
 print(a[0],b[0],c[0])
 '''
-out_raf,out_decf,out_probf,out_r90f,out_totf,out_bkgf,out_netf,out_expf,out_crf,out_fluxf=[],[],[],[],[],[],[],[],[],[]
-out_ras,out_decs,out_probs,out_r90s,out_tots,out_bkgs,out_nets,out_exps,out_crs,out_fluxs=[],[],[],[],[],[],[],[],[],[]
-out_rah,out_dech,out_probh,out_r90h,out_toth,out_bkgh,out_neth,out_exph,out_crh,out_fluxh=[],[],[],[],[],[],[],[],[],[]
+out_raf,out_decf,out_probf,out_r90f,out_totf,out_bkgf,out_netf,out_enetf_up,out_enetf_lo,out_expf,out_crf,out_ecrf_up,out_ecrf_lo,out_fluxf,out_efluxf_up,out_efluxf_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+out_ras,out_decs,out_probs,out_r90s,out_tots,out_bkgs,out_nets,out_enets_up,out_enets_lo,out_exps,out_crs,out_ecrs_up,out_ecrs_lo,out_fluxs,out_efluxs_up,out_efluxs_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+out_rah,out_dech,out_probh,out_r90h,out_toth,out_bkgh,out_neth,out_eneth_up,out_eneth_lo,out_exph,out_crh,out_ecrh_up,out_ecrh_lo,out_fluxh,out_efluxh_up,out_efluxh_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
 for i in range(len(fintsinth)):
 	out_raf.append(fintsinth[i][0][0][0])
 	out_decf.append(fintsinth[i][0][0][1])
@@ -128,9 +129,15 @@ for i in range(len(fintsinth)):
 	out_totf.append(fintsinth[i][0][0][4])
 	out_bkgf.append(fintsinth[i][0][0][5])
 	out_netf.append(fintsinth[i][0][0][6])
-	out_expf.append(fintsinth[i][0][0][7])
-	out_crf.append(fintsinth[i][0][0][8])
-	out_fluxf.append(fintsinth[i][0][0][9])
+	out_enetf_up.append(fintsinth[i][0][0][7])
+	out_enetf_lo.append(fintsinth[i][0][0][8])
+	out_expf.append(fintsinth[i][0][0][9])
+	out_crf.append(fintsinth[i][0][0][10])
+	out_ecrf_up.append(fintsinth[i][0][0][11])
+	out_ecrf_lo.append(fintsinth[i][0][0][12])
+	out_fluxf.append(fintsinth[i][0][0][13])
+	out_efluxf_up.append(fintsinth[i][0][0][14])
+	out_efluxf_lo.append(fintsinth[i][0][0][15])
 	
 	out_ras.append(fintsinth[i][0][1][0])
 	out_decs.append(fintsinth[i][0][1][1])
@@ -139,9 +146,15 @@ for i in range(len(fintsinth)):
 	out_tots.append(fintsinth[i][0][1][4])
 	out_bkgs.append(fintsinth[i][0][1][5])
 	out_nets.append(fintsinth[i][0][1][6])
-	out_exps.append(fintsinth[i][0][1][7])
-	out_crs.append(fintsinth[i][0][1][8])
-	out_fluxs.append(fintsinth[i][0][1][9])
+	out_enets_up.append(fintsinth[i][0][1][7])
+	out_enets_lo.append(fintsinth[i][0][1][8])
+	out_exps.append(fintsinth[i][0][1][9])
+	out_crs.append(fintsinth[i][0][1][10])
+	out_ecrs_up.append(fintsinth[i][0][1][11])
+	out_ecrs_lo.append(fintsinth[i][0][1][12])
+	out_fluxs.append(fintsinth[i][0][1][13])
+	out_efluxs_up.append(fintsinth[i][0][1][14])
+	out_efluxs_lo.append(fintsinth[i][0][1][15])
 	
 	out_rah.append(fintsinth[i][1][0])
 	out_dech.append(fintsinth[i][1][1])
@@ -150,11 +163,18 @@ for i in range(len(fintsinth)):
 	out_toth.append(fintsinth[i][1][4])
 	out_bkgh.append(fintsinth[i][1][5])
 	out_neth.append(fintsinth[i][1][6])
-	out_exph.append(fintsinth[i][1][7])
-	out_crh.append(fintsinth[i][1][8])
-	out_fluxh.append(fintsinth[i][1][9])
+	out_eneth_up.append(fintsinth[i][1][7])
+	out_eneth_lo.append(fintsinth[i][1][8])
+	out_exph.append(fintsinth[i][1][9])
+	out_crh.append(fintsinth[i][1][10])
+	out_ecrh_up.append(fintsinth[i][1][11])
+	out_ecrh_lo.append(fintsinth[i][1][12])
+	out_fluxh.append(fintsinth[i][1][13])
+	out_efluxh_up.append(fintsinth[i][1][14])
+	out_efluxh_lo.append(fintsinth[i][1][15])
+
 #write catalog
-cat=Table([out_raf,out_decf,out_probf,out_r90f,out_totf,out_bkgf,out_netf,out_expf,out_crf,out_fluxf,out_ras,out_decs,out_probs,out_r90s,out_tots,out_bkgs,out_nets,out_exps,out_crs,out_fluxs,out_rah,out_dech,out_probh,out_r90h,out_toth,out_bkgh,out_neth,out_exph,out_crh,out_fluxh],names=('RA_F','DEC_F','PROB_F','R90_F','TOT_F','BKG_F','NET_F','EXP_F','CR_F','FLUX_F', 'RA_S','DEC_S','PROB_S','R90_S','TOT_S','BKG_S','NET_S','EXP_S','CR_S','FLUX_S', 'RA_H','DEC_H','PROB_H','R90_H','TOT_H','BKG_H','NET_H','EXP_H','CR_H','FLUX_H'))
-cat.write(wd+'prova_cdwfs_merged_cat0.fits',format='fits',overwrite=True)
+cat=Table([out_raf,out_decf,out_probf,out_r90f,out_totf,out_bkgf,out_netf,out_enetf_up,out_enetf_lo,out_expf,out_crf,out_ecrf_up,out_ecrf_lo,out_fluxf,out_efluxf_up,out_efluxf_lo,out_ras,out_decs,out_probs,out_r90s,out_tots,out_bkgs,out_nets,out_enets_up,out_enets_lo,out_exps,out_crs,out_ecrs_up,out_ecrs_lo,out_fluxs,out_efluxs_up,out_efluxs_lo,out_rah,out_dech,out_probh,out_r90h,out_toth,out_bkgh,out_neth,out_eneth_up,out_eneth_lo,out_exph,out_crh,out_ecrh_up,out_ecrh_lo,out_fluxh,out_efluxh_up,out_efluxh_lo],names=('RA_F','DEC_F','PROB_F','R90_F','TOT_F','BKG_F','NET_F','E_NET_F_+','E_NET_F_-','EXP_F','CR_F','E_CR_F_+','E_CR_F_-','FLUX_F','E_FLUX_F_+','E_FLUX_F_-', 'RA_S','DEC_S','PROB_S','R90_S','TOT_S','BKG_S','NET_S','E_NET_S_+','E_NET_S_-','EXP_S','CR_S','E_CR_S_+','E_CR_S_-','FLUX_S','E_FLUX_S_+','E_FLUX_S_-', 'RA_H','DEC_H','PROB_H','R90_H','TOT_H','BKG_H','NET_H','E_NET_H_+','E_NET_H_-','EXP_H','CR_H','E_CR_H_+','E_CR_H_-','FLUX_H','E_FLUX_H_+','E_FLUX_H_-'))
+cat.write(wd+'cdwfs_merged_cat0.fits',format='fits',overwrite=True)
 
 print((time.time()-t_start)/60.,'minutes')
