@@ -11,12 +11,12 @@ from astropy.table import Table
 #from pycrates import *
 
 def distance(pointa, pointb):
-	"""
-	Function that calculates the distance
-	It is here because it needs to be called many many times
-	"""
-	xx = np.cos(pointa[1]/180*3.141592)
-	return np.sqrt(((pointa[0]-pointb[0])*3600*xx)**2 +((pointa[1]-pointb[1])*3600)**2)
+    """
+    Function that calculates the distance
+    It is here because it needs to be called many many times
+    """
+    xx = np.cos(pointa[1]/180*3.141592)
+    return np.sqrt(((pointa[0]-pointb[0])*3600*xx)**2 +((pointa[1]-pointb[1])*3600)**2)
 
 def choose_best(pointa, pointb):
 	"""

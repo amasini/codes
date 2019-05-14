@@ -17,8 +17,8 @@ def distance(pointa, pointb):
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600.)**2 +((pointa[1]-pointb[1])*3600.)**2)
 
 wd="/Users/alberto/Desktop/XBOOTES/"
-band='broad'
-bandbkg='broad' # this is just for the soft band, use 'broad' and 'hard' for the other bands
+band='hard'
+bandbkg='hard' # this is just for the soft band, use 'broad' and 'hard' for the other bands
 
 if band=='broad':
 	cf=1.411E-11 # gamma=1.4 for Chandra Cy18
