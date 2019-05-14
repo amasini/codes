@@ -11,104 +11,101 @@ from astropy.table import Table
 #from pycrates import *
 
 def distance(pointa, pointb):
-    """
-    Function that calculates the distance
-    It is here because it needs to be called many many times
-    """
-    xx = np.cos(pointa[0][1]/180*3.141592)
-    return np.sqrt(((pointa[0][0]-pointb[0][0])*3600*xx)**2 +((pointa[0][1]-pointb[0][1])*3600)**2)
+	"""
+	Function that calculates the distance
+	It is here because it needs to be called many many times
+	"""
+	xx = np.cos(pointa[1]/180*3.141592)
+	return np.sqrt(((pointa[0]-pointb[0])*3600*xx)**2 +((pointa[1]-pointb[1])*3600)**2)
 
 def choose_best(pointa, pointb):
-    """
-    Function that chooses the best between two points
-    This version is based on the lower prob of being spurious
-    """
-    if pointa[1] <= pointb[1]:
-        return pointa, pointb
-    else:
-        return pointb, pointa 
+	"""
+	Function that chooses the best between two points
+	This version is based on the lower prob of being spurious
+	"""
+	#if pointa[1] <= pointb[1]:
+	if pointa[2] <= pointb[2]:
+		return pointa, pointb
+	else:
+		return pointb, pointa 
     
 def unify_list(mylist):
-    """
-    function that given a list of points, removes the points that at a distance 
-    less than maxdist
- 
-    WARNING: this function need to be tested
-    """
-    #create list of synonims
-    nearby_points = {}
-    #for each couple of elements I check if their distance is less than my limit
-    for couple in combinations(mylist, 2):
-        if (distance(couple[0], couple[1]) <= 1.1*couple[0][0][3] or distance(couple[0], couple[1]) <= 1.1*couple[1][0][3]):
-            #choose which point is the main and which is the secondary
-            main_point, secondary_point = choose_best(couple[0], couple[1])
-            #if the distance is less than the limit, I assign the second as synonim of the first
-            nearby_points.setdefault(main_point, []).append(secondary_point)
-    #at the end of the previous for, what I have is the following:
-    #if I have A, B and C and they are all under the limit
-    #then I will have that nearby_points is {A:[B, C]}
-    
-    #create inverted dictionary of synonims: I need it to have a fast lookup
-    inverted_syn = {}
-    for key, syn_list in nearby_points.iteritems():
-        for synonim in syn_list:
-            inverted_syn[synonim] = key
-    #what I will have after this section is that for each "secondary" 
-    #point I assign to it the main one       
-    #basically, if I have nearby_points == {A:[B, C]}
-    #I will have inverted_syn = {B:A, C:A}
-    
-    #reconstruct the list
-    ret_dict = {}
-    for elem in mylist:
-        if elem not in inverted_syn:
-            ret_dict[elem] = True
-        else:
-            ret_dict[inverted_syn[elem]] = True
-    #what the previous code does is:
-    #it takes every element of the original list and it checks if 
-    #it is a synonim of a more "important" one (meaning if it is in inverted_syn
-    #if it is not in inverted_syn, then it means that it has no synonims and it can be used as it is
-    #otherwise the synonim is taken instead of the original
-    #in other words if mylist is [A, B, C, D]
-    #D is not in inverted_syn and is taken as it is
-    #A is not in inverted_syn (it is the main one), and is taken as it is
-    #for B and C I take A instead of them
-    #I use ret_dict instead of a list because it unifies the results
-            
-    ret_list = ret_dict.keys()
-    ret_list.sort()
-    if ret_list == mylist:
-        return ret_list
-    else:
-        return unify_list(ret_list)
-    #the previous code takes all the keys of ret_dict and put them in a list
-    #then it checks if the new list is the same of the one in input
-    #if it is than we are done
-    #otherwise we call the same function recursively to run the reduction on the new set
+	"""
+	function that given a list of points, removes the points that at a distance 
+	less than maxdist
+
+	WARNING: this function need to be tested
+	"""
+	#create list of synonims
+	nearby_points = {}
+	#for each couple of elements I check if their distance is less than my limit
+	for couple in combinations(mylist, 2):
+		if (distance(couple[0], couple[1]) <= 1.1*couple[0][3] or distance(couple[0], couple[1]) <= 1.1*couple[1][3]):
+			#choose which point is the main and which is the secondary
+			main_point, secondary_point = choose_best(couple[0], couple[1])
+			#if the distance is less than the limit, I assign the second as synonim of the first
+			nearby_points.setdefault(main_point, []).append(secondary_point)
+	#at the end of the previous for, what I have is the following:
+	#if I have A, B and C and they are all under the limit
+	#then I will have that nearby_points is {A:[B, C]}
+
+	#create inverted dictionary of synonims: I need it to have a fast lookup
+	inverted_syn = {}
+	for key, syn_list in nearby_points.iteritems():
+		for synonim in syn_list:
+			inverted_syn[synonim] = key
+	#what I will have after this section is that for each "secondary" 
+	#point I assign to it the main one       
+	#basically, if I have nearby_points == {A:[B, C]}
+	#I will have inverted_syn = {B:A, C:A}
+
+	#reconstruct the list
+	ret_dict = {}
+	for elem in mylist:
+		if elem not in inverted_syn:
+			ret_dict[elem] = True
+		else:
+			ret_dict[inverted_syn[elem]] = True
+	#what the previous code does is:
+	#it takes every element of the original list and it checks if 
+	#it is a synonim of a more "important" one (meaning if it is in inverted_syn
+	#if it is not in inverted_syn, then it means that it has no synonims and it can be used as it is
+	#otherwise the synonim is taken instead of the original
+	#in other words if mylist is [A, B, C, D]
+	#D is not in inverted_syn and is taken as it is
+	#A is not in inverted_syn (it is the main one), and is taken as it is
+	#for B and C I take A instead of them
+	#I use ret_dict instead of a list because it unifies the results
+		
+	ret_list = ret_dict.keys()
+	ret_list.sort()
+	if ret_list == mylist:
+		return ret_list
+	else:
+		return unify_list(ret_list)
+	#the previous code takes all the keys of ret_dict and put them in a list
+	#then it checks if the new list is the same of the one in input
+	#if it is than we are done
+	#otherwise we call the same function recursively to run the reduction on the new set
 
 
 def main():
     """main function"""
 
+
 wd='/Users/alberto/Desktop/XBOOTES/'
+
+band='broad'
 
 tstart= datetime.datetime.now()
 #read the file and put it in memory
 file_in_memory = []
 
-hdul=fits.open(wd+'mosaic_hard_cat0_3.fits') #file to clean, with duplicates (blendings)
-ra_k=hdul[1].data['RA']
-dec_k=hdul[1].data['DEC']
-r90=hdul[1].data['AV_R90']
-cts_full=hdul[1].data['TOT']
-flux_k=hdul[1].data['FLUX']
+hdul=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0.fits') #file to clean, with duplicates (blendings)
 
 prob=hdul[1].data['PROB']
-#detml=hdul[1].data['DETML']
-#prob=np.e**(-detml)
-
 file=hdul[1].data
+
 hdul.close()
 
 '''
@@ -126,8 +123,9 @@ file=file[prob<=cut]
 prob=prob[prob<=cut]
 '''
 for line in range(len(file)):
-	file_in_memory.append((file[line],prob[line]))
-	
+	#file_in_memory.append((file[line],prob[line]))
+	file_in_memory.append(file[line])
+
 #file_in_memory[0][0] is the point (line from catalog), file_in_memory[0][1] is prob
 
 print('Starting with ',len(file_in_memory))
@@ -138,37 +136,33 @@ final_list = unify_list(file_in_memory)
 
 print('Ended with ',len(final_list))
 
-file_in_memory2=[]
-for line in range(len(final_list)):
-	line_in_memory=[]
-	#file_in_memory.append((file[line],theta[line]))
-	for j in range(len(final_list[line][0])):
-		line_in_memory.append(final_list[line][0][j])
-	line_in_memory.append(final_list[line][1])
-	file_in_memory2.append(line_in_memory)
-
-ra,dec,prob,av_r90,tot,bkg,net,exptime,cr,flux=[],[],[],[],[],[],[],[],[],[]
-for i in range(len(file_in_memory2)):
-	ra.append(file_in_memory2[i][0])
-	dec.append(file_in_memory2[i][1])
+ra,dec,prob,av_r90,tot,bkg,net,e_net_up,e_net_lo,exptime,cr,e_cr_up,e_cr_lo,flux,e_flux_up,e_flux_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+for i in range(len(final_list)):
+	ra.append(final_list[i][0])
+	dec.append(final_list[i][1])
 	
-	av_r90.append(file_in_memory2[i][3])
-	tot.append(file_in_memory2[i][4])
-	bkg.append(file_in_memory2[i][5])
-	net.append(file_in_memory2[i][6])
-	exptime.append(file_in_memory2[i][7])
-	cr.append(file_in_memory2[i][8])
-	flux.append(file_in_memory2[i][9])
-	
-	prob.append(file_in_memory2[i][10])
+	prob.append(final_list[i][2])
+	av_r90.append(final_list[i][3])
+	tot.append(final_list[i][4])
+	bkg.append(final_list[i][5])
+	net.append(final_list[i][6])
+	e_net_up.append(final_list[i][7])
+	e_net_lo.append(final_list[i][8])
+	exptime.append(final_list[i][9])
+	cr.append(final_list[i][10])
+	e_cr_up.append(final_list[i][11])
+	e_cr_lo.append(final_list[i][12])
+	flux.append(final_list[i][13])
+	e_flux_up.append(final_list[i][14])
+	e_flux_lo.append(final_list[i][15])	
 
 #write catalog
-cat=Table([ra,dec,prob,av_r90,tot,bkg,net,exptime,cr,flux],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','EXP','CR','FLUX'))
-cat.write(wd+'mosaic_hard_cat1_3.fits',format='fits',overwrite=True)
+cat=Table([ra,dec,prob,av_r90,tot,bkg,net,e_net_up,e_net_lo,exptime,cr,e_cr_up,e_cr_lo,flux,e_flux_up,e_flux_lo],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','e_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
+cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat1.fits',format='fits',overwrite=True)
 
 tstop= datetime.datetime.now()
 time_elapse = tstop - tstart
-print 'timer ',divmod(time_elapse.days * 86400 + time_elapse.seconds, 60)		    
+print('timer ',divmod(time_elapse.days * 86400 + time_elapse.seconds, 60))
 
 if __name__ == '__main__':
 	main()

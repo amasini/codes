@@ -16,16 +16,16 @@ for i in range(len(obsid)):
 		stem=obsid[i]
 			
 	#check to have all the files for the mosaics
-	if os.path.isfile(wd+'sim_full/acisf'+stem+'_sim_poiss.fits'):
-		pass
-	else:
-		print('Please create simulation for '+obsid[i]+'')
+	#if os.path.isfile(wd+'sim_full/acisf'+stem+'_sim_poiss.fits'):
+	#	pass
+	#else:
+	#	print('Please create simulation for '+obsid[i]+'')
 			
-	if os.path.isfile(wd+'data/'+obsid[i]+'/repro_new_asol/out/acisf'+stem+'_broad_bkgmap.fits'):
+	if os.path.isfile(wd+'data/'+obsid[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits'):
 		pass
 	else:
 		print('Please create bkgmap for '+obsid[i]+'')
-		
+	'''	
 	if os.path.isfile(wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV.img'):
 		pass
 	else:
@@ -43,3 +43,4 @@ for i in range(len(obsid)):
 	else:
 		print('Creating 2-7 keV img for '+obsid[i]+'')
 		s.call('dmcopy \"'+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_evt2.fits[ccd_id=0:3][energy=2000:7000]\" '+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_2to7keV.img opt=image clobber=yes',shell=True)
+	'''

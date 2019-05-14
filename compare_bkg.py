@@ -21,6 +21,72 @@ wd="/Users/alberto/Desktop/XBOOTES/"
 band='soft'
 band2='0.5-2'
 
+
+obs=np.genfromtxt(wd+'data_counts.dat',unpack=True, usecols=1,dtype='str')
+diff1,exp=[],[],[]
+for i in range(len(obs)):
+	if len(obs[i]) == 4:
+		stem='0'+obs[i]
+	elif len(obs[i]) == 3:
+		stem='00'+obs[i]
+	elif len(obs[i]) == 5:
+		stem=obs[i]
+	print(obs[i])
+
+
+	# Extract diffuse bkg counts from data-detected sources in F band+clusters
+	s.call('dmextract infile="'+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_'+band3+'keV_4rebinned.img[bin sky=region('+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_broad_src-bkg.reg)]" outfile=out2.fits opt=generic mode=h clobber=yes',shell=True)
+	cts=s.check_output('dmlist "out2.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
+	area=s.check_output('dmlist "out2.fits[cols AREA]" data,clean | grep -v AREA',shell=True)
+	cts,area=float(cts),float(area)
+	exposure=s.check_output('dmkeypar '+wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img LIVETIME echo=yes',shell=True)
+	exp.append(float(exposure))
+	
+	# Rescale the counts for the total number of pixels in Chandra's FOV (16.9 arcmin^2)
+	cts2=cts*(4247721./area) # This is the total bkg estimated from data
+
+	if band == 'soft':
+		if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits') == True:
+			softbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits')
+		else:
+			softbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
+		
+		bkg=softbkgmap[0].data
+	elif band == 'hard':
+		if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits') == True:
+			hardbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits')
+		else:
+			hardbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_instr.fits')
+		
+		bkg=hardbkgmap[0].data
+	else:
+		fullbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_broad_bkgmap_total.fits')
+		bkg=fullbkgmap[0].data
+		
+	diff=cts2-np.sum(bkg) # Difference between total bkg and instrumental one
+	e_diff=np.sqrt(cts2+np.sum(bkg)) # 1sigma unc on difference
+	diff1.append(diff/e_diff)
+
+
+plt.figure()
+plt.hist(diff1,bins=20)
+#plt.plot(exp,diff1,'k.')
+#plt.xscale('log')
+plt.xlabel('Sigma deviation (Bkg_fromdata - Bkg_instr)')
+plt.ylabel('N')
+#plt.savefig(wd+'cdwfs_bkg_'+band+'.pdf',format='pdf')
+plt.show()
+sys.exit()
+############
+############
+
+
+
+
+
+
+
+
 if band=='broad':
 	R=0.13+0.27+1.12
 elif band=='soft':

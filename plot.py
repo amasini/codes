@@ -10,15 +10,484 @@ from scipy.stats import poisson
 import subprocess as s
 import scipy.special
 from scipy.integrate import quad
+import time
+from scipy.interpolate import interp1d
+import os
+import matplotlib.cm as cm
+import matplotlib.gridspec as gridspec
+from scipy import stats
 
+def distance(pointa, pointb):
+    xx = np.cos(pointa[1]/180*3.141592)
+    return np.sqrt(((pointa[0]-pointb[0])*xx*3600)**2 +((pointa[1]-pointb[1])*3600)**2)
+    
 def integrand(x,a):
     return x**(-a+1)
 
 def gauss(x,mu,sigma):
 	g=np.exp(-(x-mu)**2/(2*sigma**2))
 	return g
-	
 wd='/Users/alberto/Desktop/XBOOTES/'
+
+#expmap=fits.open(wd+'new_mosaics_detection/cdwfs_broad_expomap_4reb.fits')
+#exp=expmap[0].data
+
+#with fits.open(wd+'psfmaps/cdwfs_broad_r90sq-x-exp_4reb-cp.fits', mode='update') as hdul:
+#	# Change something in hdul.
+#	hdul[0].data=hdul[0].data/(16.0*exp)
+#	hdul[0].data[np.isnan(hdul[0].data)]=0.0
+#	hdul.flush()  # changes are written back
+#sys.exit()
+
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1.fits')
+ctsf=cat[1].data['NET_F']
+ctss=cat[1].data['NET_S']
+ctsh=cat[1].data['NET_H']
+poserr=cat[1].data['POS_ERR']
+hr=cat[1].data['HR']
+fluxf=cat[1].data['FLUX_F']
+fluxs=cat[1].data['FLUX_S']
+fluxh=cat[1].data['FLUX_H']
+probf=cat[1].data['PROB_F']
+
+poserr=poserr[fluxf>0]
+ctsf=ctsf[ctsf>0]
+ctss=ctss[ctss>0]
+ctsh=ctsh[ctsh>0]
+probf=probf[fluxf>0]
+
+hrb=hr[fluxf>0]
+fluxf=fluxf[fluxf>0]
+fluxs=fluxs[fluxs>0]
+fluxh=fluxh[fluxh>0]
+
+fluxf2=fluxf[hrb!=-99]
+hr2=hrb[hrb!=-99]
+
+fig = plt.figure(tight_layout=True,figsize=[6,4])
+gs = gridspec.GridSpec(2,3)
+gs.update(wspace=0., hspace=0.)
+
+ax1 = plt.subplot(gs[0:2, 0:2])
+ax1.hexbin(fluxf2,hr2,xscale='log',bins='log',gridsize=30)
+#ax1.xaxis.set_visible(False)
+#ax1.yaxis.set_visible(False)
+ax1.set_xscale('log')
+ax1.set_xlabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+ax1.set_ylabel('HR',fontsize=13)
+#ax1.legend()
+
+# make the contour plot
+#plt.figure()
+#plt.plot(fluxf2,hr2,marker='.',c='gold',mec='k',linestyle='')
+#plt.hexbin(fluxf2,hr2,xscale='log',bins='log',gridsize=30)
+#plt.contour(counts.transpose(),extent=[xbins.min(),xbins.max(),ybins.min(),ybins.max()],linewidths=3,colors='red',linestyles='solid')
+#plt.xlabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+#plt.ylabel('HR',fontsize=13)
+#plt.tick_params(which='major',labelsize=13)
+#plt.xscale('log')
+hr=hr[hr!=-99]
+
+ax2 = plt.subplot(gs[0:2, 2:3])
+ax2.hist(hr,bins=30,color='gold',edgecolor='k',orientation='horizontal')
+#ax2.xaxis.set_visible(False)
+ax2.set_xlabel('#')
+ax2.yaxis.set_visible(False)
+plt.show()
+
+#plt.savefig(wd+'cdwfs_hr.pdf',format='pdf')
+#hr=hr[hr!=-99]
+#plt.figure()
+#plt.hist(hr,bins=30,color='gold',edgecolor='k')
+#plt.xlabel('HR',fontsize=13)
+#plt.tick_params(which='major',labelsize=13)
+#plt.xscale('log')
+#plt.legend()
+#plt.tight_layout()
+#plt.show()
+#plt.savefig(wd+'cdwfs_net_distr.pdf',format='pdf')
+
+print('min(pos_err):',min(poserr),'max(pos_err):',max(poserr))
+bins=np.logspace(np.log10(min(poserr)),np.log10(max(poserr)),50)
+plt.figure()
+plt.hist(poserr,bins=bins)
+plt.xscale('log')
+plt.xlabel(r'Pos err ["]',fontsize=13)
+plt.show()
+
+plt.figure()
+plt.plot(fluxf,poserr,'b+')
+plt.xscale('log')
+plt.yscale('log')
+plt.ylabel('Pos err ["]',fontsize=13)
+plt.xlabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+plt.tick_params(which='major',labelsize=13)
+plt.tight_layout()
+plt.show()
+
+plt.figure()
+plt.plot(probf,fluxf,'k.')
+plt.axvline(x=6e-5,linestyle='dashed')
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel('Prob of being spurious',fontsize=13)
+plt.ylabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+plt.axis([1e-30,1,5e-17,5e-13])
+plt.tick_params(which='major',labelsize=13)
+plt.tight_layout()
+plt.show()
+#plt.savefig(wd+'cdwfs_full_flux.pdf',format='pdf')
+
+bins=np.logspace(np.log10(min(ctsf)),np.log10(max(ctsf)),30)
+plt.figure()
+plt.hist(ctsf,bins=bins,label='F')
+plt.hist(ctss,bins=bins,label='S')
+plt.hist(ctsh,bins=bins,label='H')
+plt.xlabel('Net cts',fontsize=13)
+plt.tick_params(which='major',labelsize=13)
+plt.xscale('log')
+plt.legend()
+plt.tight_layout()
+plt.show()
+#plt.savefig(wd+'cdwfs_net_distr.pdf',format='pdf')
+#sys.exit()
+
+#with fits.open(wd+'new_mosaics_detection/cdwfs_hard_expomap_4reb.fits', mode='update') as #hdul:
+#	# Change something in hdul.
+#	hdul[0].data=hdul[0].data/16.0
+#	hdul.flush()  # changes are written back
+
+#sys.exit()
+'''
+cat=fits.open(wd+'new_mosaics_detection/xbootes_broad_cat0.fits')
+ra=cat[1].data['RA']
+dec=cat[1].data['DEC']
+r90=cat[1].data['AV_R90']
+tot=cat[1].data['TOT']
+
+ra=ra[tot>=4]
+dec=dec[tot>=4]
+r90=r90[tot>=4]
+
+ken=fits.open(wd+'xbootes_kenter+05.fits')
+rak=ken[1].data['RAJ2000']
+deck=ken[1].data['DEJ2000']
+found=0
+for i in range(len(ra)):
+	my=[ra[i],dec[i]]
+	at_least_one=0
+	for j in range(len(rak)):
+		xb=[rak[j],deck[j]]
+		d=distance(my,xb)
+		if d <= 1.1*r90[i]:
+			if at_least_one==0:
+				at_least_one=1
+				found=found+1
+print(len(ra),len(rak))
+print(found,'matches')
+			
+sys.exit()
+'''
+
+obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str')
+#obsid=['10450']
+kt,apec,cxb=[],[],[]
+for obs in obsid:
+	kt_v=np.genfromtxt(wd+'data/'+obs+'/repro_new_asol/extract/fitparams.dat',skip_footer=4,unpack=True,usecols=0)
+	cr=np.genfromtxt(wd+'data/'+obs+'/repro_new_asol/extract/fitparams.dat',skip_header=3,unpack=True,usecols=2)
+	if kt_v < 72.0:
+		kt.append(kt_v)
+	else:
+		print(kt_v,'check fit obsid',obs)
+	apec.append(cr[0])
+	cxb.append(cr[1])
+
+exp=np.genfromtxt(wd+'apec_cr_soft_with-gauss-line.dat',unpack=True, skip_header=1,usecols=3)
+(mjd,bkg,e_bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,usecols=[1,2,3],skip_header=1)
+
+#bins=np.linspace(min(mjd),max(mjd),7)
+bins=[52100,52440,52750,53700,54000,54300,56000,57000,57800,58400]
+nyears=int((max(bins)-min(bins))/365.)
+
+#bin_means, bin_edges, binnumber = stats.binned_statistic(mjd,apec, statistic='median', bins=nyears)
+
+apec=np.array(apec)
+n,be=np.histogram(mjd,bins=nyears)
+bc=list((be[i+1]+be[i])/2. for i in range(len(be)-1))
+median,lo,up=[],[],[]
+for i in range(len(be)-1):
+	newapec=apec[(mjd>=be[i]) & (mjd<be[i+1])]
+	if len(newapec)==0:
+		median.append(0)
+		lo.append(0)
+		up.append(0)
+	else:
+		median.append(np.median(newapec))
+		lo.append(np.median(newapec)-np.percentile(newapec,16))
+		up.append(np.percentile(newapec,84)-np.median(newapec))
+
+binexp=np.logspace(np.log10(min(exp)),np.log10(max(exp)),11)
+n,be=np.histogram(exp,bins=binexp)
+bc_exp=list((be[i+1]+be[i])/2. for i in range(len(be)-1))
+median_exp,lo_exp,up_exp=[],[],[]
+for i in range(len(be)-1):
+	newapec=apec[(exp>=be[i]) & (exp<be[i+1])]
+	if len(newapec)==0:
+		median_exp.append(0)
+		lo_exp.append(0)
+		up_exp.append(0)
+	else:
+		median_exp.append(np.median(newapec))
+		lo_exp.append(np.median(newapec)-np.percentile(newapec,16))
+		up_exp.append(np.percentile(newapec,84)-np.median(newapec))
+
+cxb=np.array(cxb)
+n,be=np.histogram(mjd,bins=nyears)
+bc_cxb=list((be[i+1]+be[i])/2. for i in range(len(be)-1))
+median_cxb,lo_cxb,up_cxb=[],[],[]
+for i in range(len(be)-1):
+	newcxb=cxb[(mjd>=be[i]) & (mjd<be[i+1])]
+	if len(newcxb)==0:
+		median_cxb.append(0)
+		lo_cxb.append(0)
+		up_cxb.append(0)
+	else:
+		median_cxb.append(np.median(newcxb))
+		lo_cxb.append(np.median(newcxb)-np.percentile(newcxb,16))
+		up_cxb.append(np.percentile(newcxb,84)-np.median(newcxb))
+
+n,be=np.histogram(exp,bins=binexp)
+bc_cxb_exp=list((be[i+1]+be[i])/2. for i in range(len(be)-1))
+median_cxb_exp,lo_cxb_exp,up_cxb_exp=[],[],[]
+for i in range(len(be)-1):
+	newcxb=cxb[(exp>=be[i]) & (exp<be[i+1])]
+	if len(newcxb)==0:
+		median_cxb_exp.append(0)
+		lo_cxb_exp.append(0)
+		up_cxb_exp.append(0)
+	else:
+		median_cxb_exp.append(np.median(newcxb))
+		lo_cxb_exp.append(np.median(newcxb)-np.percentile(newcxb,16))
+		up_cxb_exp.append(np.percentile(newcxb,84)-np.median(newcxb))
+
+#tot=cxb+apec
+
+#plt.figure()
+#plt.hist(kt,bins=10)
+#plt.show()
+
+#plt.figure()
+#plt.plot(exp,kt,'bx')
+#plt.xscale('log')
+#plt.show()
+#plt.figure()
+#plt.plot(mjd,kt,'rx')
+#plt.show()
+
+plt.figure()
+#plt.errorbar(mjd,bkg,yerr=e_bkg,color='red',fmt='.',label='9-12 keV')
+plt.plot(exp,cxb,marker='o',markerfacecolor="None",markeredgecolor='green',markeredgewidth=1,label='CXB',linestyle="None")
+plt.plot(exp,apec,marker='o',markerfacecolor="None",markeredgecolor='gold',markeredgewidth=1,label='APEC',linestyle="None")
+plt.errorbar(bc_exp,median_exp,yerr=[lo_exp,up_exp],fmt='s',color='red')
+plt.errorbar(bc_cxb_exp,median_cxb_exp,yerr=[lo_cxb_exp,up_cxb_exp],fmt='s',color='blue')
+#plt.errorbar(mjd,tot,yerr=e_bkg,color='black',fmt='+',ms=10)
+#plt.errorbar(mjd,apec_sb,yerr=e_apec_sb,color='green',fmt='.',label='APEC')
+#plt.errorbar(mjd,pl_sb,yerr=e_pl_sb,color='blue',fmt='.',label='PL')
+#plt.errorbar(mjd,total_sb,yerr=e_total_sb,color='black',fmt='.',label='APEC+PL')
+#plt.errorbar(mjd,rescaled_bkg,yerr=e_rescaled_bkg,color='gray',fmt='.',label=r'9-12keV $\rightarrow$ 0.5-1 keV')
+plt.xlabel('Exp [s]')
+plt.ylabel('Cts/s')
+plt.xscale('log')
+plt.yscale('log')
+plt.legend()
+plt.tight_layout()
+
+plt.figure()
+#plt.errorbar(mjd,bkg,yerr=e_bkg,color='red',fmt='.',label='9-12 keV')
+plt.plot(mjd,cxb,marker='o',markerfacecolor="None",markeredgecolor='green',markeredgewidth=1,label='CXB',linestyle="None")
+plt.plot(mjd,apec,marker='o',markerfacecolor="None",markeredgecolor='gold',markeredgewidth=1,label='APEC',linestyle="None")
+plt.errorbar(bc,median,yerr=[lo,up],fmt='s',color='red')
+plt.errorbar(bc_cxb,median_cxb,yerr=[lo_cxb,up_cxb],fmt='s',color='blue')
+#plt.errorbar(mjd,tot,yerr=e_bkg,color='black',fmt='+',ms=10)
+#plt.errorbar(mjd,apec_sb,yerr=e_apec_sb,color='green',fmt='.',label='APEC')
+#plt.errorbar(mjd,pl_sb,yerr=e_pl_sb,color='blue',fmt='.',label='PL')
+#plt.errorbar(mjd,total_sb,yerr=e_total_sb,color='black',fmt='.',label='APEC+PL')
+#plt.errorbar(mjd,rescaled_bkg,yerr=e_rescaled_bkg,color='gray',fmt='.',label=r'9-12keV $\rightarrow$ 0.5-1 keV')
+plt.xlabel('MJD')
+plt.ylabel('Cts/s')
+plt.yscale('log')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+sys.exit()
+
+#bins=np.logspace(np.log10(min(fluxf)),np.log10(max(fluxf)),20)
+#plt.figure()
+#plt.hist(fluxf,bins=bins)
+#plt.hist(fluxs,bins=bins)
+#plt.hist(fluxh,bins=bins)
+#plt.xscale('log')
+#plt.show()
+cut=np.logspace(np.log10(5e-5),np.log10(1e-1),15)
+sp_frac_f=np.genfromtxt(wd+'cdwfs_broad_sp-frac.dat',unpack=True,usecols=1)
+sp_frac_s=np.genfromtxt(wd+'cdwfs_soft_sp-frac.dat',unpack=True,usecols=1)
+sp_frac_h=np.genfromtxt(wd+'cdwfs_hard_sp-frac.dat',unpack=True,usecols=1)
+
+plt.figure()
+
+plt.plot(cut,sp_frac_f,'ko-',label='Full band')
+plt.plot(cut,sp_frac_s,'go-',label='Soft band')
+plt.plot(cut,sp_frac_h,'ro-',label='Hard band')
+
+plt.axhline(y=1.0)
+plt.axhline(y=3.0)
+plt.xscale('log')
+plt.xlabel('Prob cut',fontsize=13)
+plt.ylabel('Sp fraction (%)',fontsize=13)
+plt.tick_params(which='major',labelsize=13)
+plt.legend()
+plt.tight_layout()
+plt.savefig(wd+'cdwfs_sp-frac.pdf',format='pdf')
+#plt.show()
+
+sys.exit()
+
+'''
+x=np.linspace(0,5,101)
+sigma=np.sqrt(0.2**2+1.0**2)
+y=2*np.pi*x/(np.sqrt(2*np.pi)*sigma)*gauss(x,0,sigma)
+y2=1./(np.sqrt(2*np.pi)*sigma)*gauss(x,0,sigma)
+normy=y/np.sum(y)
+normy2=y2/np.sum(y2)
+plt.figure()
+plt.plot(x,normy,'r-')
+plt.plot(x,normy2,'b-')
+plt.show()
+
+sys.exit()
+band='I' # I, K, 3.6mu
+
+nmI=np.genfromtxt(wd+'LR_nm_'+band+'.dat',unpack=True)
+qmI=np.genfromtxt(wd+'LR_qm_'+band+'.dat',unpack=True)
+binwidth=0.5 # mag
+
+nbinsI=int((max(nmI)-min(nmI))/binwidth)
+qbinsI=int((max(qmI)-min(qmI))/binwidth)
+(n,b)=np.histogram(nmI,bins=nbinsI)
+(q,bq)=np.histogram(qmI,bins=qbinsI)
+
+#print(n,b) # n is the number of sources in each bin of magnitude 
+r=5.0
+R=30.0
+A=np.pi*(R**2-r**2)
+nnew=(n/A)*np.pi # number of sources per arcsec, for the whole 6963 sources, times the area of a circular 1"-radius region (A=pi*R^2)
+bnew=list((b[i+1]+b[i])/2. for i in range(len(b)-1))
+bqnew=list((bq[i+1]+bq[i])/2. for i in range(len(bq)-1))
+#sys.exit()
+
+# Interpolate the two distributions
+xvals=np.linspace(11,30,191) # Magnitudes
+qvals = np.interp(xvals, bqnew, q)
+nvals = np.interp(xvals, bnew, nnew)
+diff=qvals-nvals
+
+'''
+# Cubic interpolation
+#fq2 = interp1d(bqnew, q, kind='cubic')
+#fn2 = interp1d(bnew, nnew, kind='cubic')
+
+#xvalsq2=np.linspace(10,20,(20-10)*10+1) # Magnitudes
+#xvalsn2=np.linspace(10,20,(20-10)*10+1) # Magnitudes
+#qvals2=fq2(xvalsq2)
+#nvals2=fn2(xvalsn2)
+#diff2=qvals2-nvals2
+'''
+w=open(wd+'LR_qprimom_'+band+'.dat','w')
+for k in range(len(diff)):
+	w.write(str(xvals[k])+' \t '+str(diff[k])+'\n')
+w.close()
+
+plt.figure()
+#plt.hist(qmI,bins=qbinsI)
+plt.plot(bqnew,q,'k+')
+#plt.plot(xvals,qvals,'b.')
+plt.plot(bnew,nnew,'r+')
+#plt.plot(xvals,nvals,'g.')
+plt.plot(xvals,diff,'y-')
+#plt.plot(xvalsq2,diff2,'b--')
+plt.xlabel('Magnitude')
+plt.ylabel('# of counterparts per arcsec')
+plt.show()
+
+diff2=diff/np.max(np.sum(diff)) # this is normalized such as np.sum(diff2)=1
+if band == 'I':
+	diff3=diff2*(3700./6963.)
+elif band == 'K':
+	diff3=diff2*(1303./6963.)
+elif band == '3.6mu':
+	diff3=diff2*(3395./6963.)
+print(diff3,np.sum(diff3))
+
+sys.exit()
+
+'''
+
+'''
+# Open Chung+14 catalog
+cat3=fits.open(wd+'xbootes_chung+14.fits')
+ra_chu=cat3[1].data['RAJ2000']
+dec_chu=cat3[1].data['DEJ2000']
+w=open(wd+'chung+14.reg','w')
+for k in range(len(ra_chu)):
+	w.write('circle('+str(ra_chu[k])+'d,'+str(dec_chu[k])+'d,2\") #color=magenta \n')
+w.close()
+sys.exit()
+
+cat=fits.open(wd+'cdwfs_merged_cat1.fits')
+ra=cat[1].data['RA']
+dec=cat[1].data['DEC']
+r90=cat[1].data['R90_S']
+probf=cat[1].data['PROB_F']
+probs=cat[1].data['PROB_S']
+probh=cat[1].data['PROB_H']
+cutf,cuts,cuth=6e-5,1.4e-4,6e-5
+fsh,fs,fh,sh,f,s,h=0,0,0,0,0,0,0
+for i in range(len(probf)):
+	if (probf[i] != 9999.0 and probf[i] <= cutf):
+		if (probs[i] != 9999.0 and probs[i] <= cuts):
+			if (probh[i] != 9999.0 and probh[i] <= cuth):
+				fsh=fsh+1
+			else:
+				fs=fs+1
+		else:
+			if (probh[i] != 9999.0 and probh[i] <= cuth):
+				fh=fh+1
+			else:
+				f=f+1
+	else:
+		if (probs[i] != 9999.0 and probs[i] <= cuts):
+			if (probh[i] != 9999.0 and probh[i] <= cuth):
+				sh=sh+1
+				print(ra[i],dec[i])
+				sys.exit()
+			else:
+				s=s+1
+		else:
+			if (probh[i] != 9999.0 and probh[i] <= cuth):
+				h=h+1
+			else:
+				print('something wrong',totf[i],tots[i],toth[i])
+print('fsh:',fsh)
+print('fs:',fs)
+print('fh:',fh)
+print('sh:',sh)
+print('f:',f)
+print('s:',s)
+print('h:',h)
+print(fsh+fs+fh+sh+f+s+h)
+#print(len(totf),len(totf[totf>=30.]))
+sys.exit()
 
 gamma=np.arange(1.3,2.4,0.1)
 cf_f=[6.243,6.355,6.456,6.544,6.617,6.674,6.712,6.731,6.731,6.709,6.668]
@@ -29,6 +498,7 @@ cf_s=np.array(cf_s)*1e10
 cf_h=np.array(cf_h)*1e10
 
 fluxrat_s=[0.3016,0.3295,0.3587,0.3890,0.4203,0.4524,0.4849,0.5176,0.5502,0.5825,0.6141]
+fluxrat_h=1-np.array(fluxrat_s)
 
 xvals = np.linspace(1.3, 2.3, 101)
 yinterp_f = np.interp(xvals, gamma, cf_f)
@@ -36,6 +506,7 @@ yinterp_s = np.interp(xvals, gamma, cf_s)
 yinterp_h = np.interp(xvals, gamma, cf_h)
 
 fluxinterp_s = np.interp(xvals, gamma, fluxrat_s)
+fluxinterp_h = 1-fluxinterp_s
 
 mu=1.8
 sigma=0.2
@@ -50,14 +521,7 @@ new=p/np.sum(p)
 #plt.axvline(mu-sigma)
 #plt.axvline(mu+sigma)
 #plt.show()
-'''
-totcxb=[]
-for j in range(1000):
-	totcxb.append(np.random.choice(xvals, p=new))
-plt.figure()
-plt.hist(totcxb,bins=20)
-plt.show()
-'''
+
 
 #(full_flux,ra,dec)=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',unpack=True, skip_header=1,usecols=[0,1,2])
 #w=open(wd+'poiss_rand_lehmerx20_NEW.dat','w')
@@ -86,26 +550,61 @@ plt.show()
 plt.figure()
 plt.plot(gamma, fluxrat_s,'go',label='Soft')
 plt.plot(xvals, fluxinterp_s,'g--')
-#plt.plot(gamma, 1-fluxrat_s,'ro',label='Hard')
-#plt.plot(xvals, 1-fluxinterp_s,'r--')
+plt.plot(gamma, fluxrat_h,'ro',label='Hard')
+plt.plot(xvals, fluxinterp_h,'r--')
 plt.xlabel('Gamma')
-plt.xlabel('Ratio to 0.5-7 keV flux')
+plt.ylabel('Ratio to 0.5-7 keV flux')
 plt.legend()
 plt.tight_layout()
 plt.show()
-sys.exit()
+#sys.exit()
+'''
 
-(apec,pl,exp)=np.genfromtxt(wd+'apec_cr_soft_with-gauss-line.dat',unpack=True, skip_header=1,usecols=[6,7,3])
-obs=np.genfromtxt(wd+'apec_cr_soft_with-gauss-line.dat',unpack=True, skip_header=1,usecols=0)
-ib=np.genfromtxt(wd+'IB_soft.dat',unpack=True, skip_header=1,usecols=2)
+#(obs,apec_cr,pl_cr,exp,pixarea,apec_sb,apec,pl_sb,pl)=np.genfromtxt(wd+'apec_cr_soft_with-gauss-line.dat',unpack=True, skip_header=1)
+(cxb,apec)=np.genfromtxt(wd+'BACK_soft.dat',unpack=True, skip_header=1,usecols=[1,2])
+(mjd,bkg,e_bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,usecols=[1,2,3],skip_header=1)
+#errs=e_bkg/bkg
+#err=np.median(errs)
+#e_apec_sb=err*apec_sb
+#e_pl_sb=err*pl_sb
 
-cxb=pl-ib
+#total_sb=apec_sb+pl_sb
+#e_total_sb=np.sqrt(e_apec_sb**2+e_pl_sb**2)
+#rescaled_bkg=0.4*bkg
+#rescaled_bkg=0.13*bkg
+#e_rescaled_bkg=0.13*e_bkg
+
+#cxb=pl-ib
+#diff=(total_sb-rescaled_bkg)/total_sb
+
+#plt.figure()
+#plt.plot(exp,cxb,'b.')
+#plt.xscale('log')
+#plt.show()
+tot=cxb+apec
 
 plt.figure()
-plt.plot(obs,cxb,'b.')
-plt.xscale('log')
+#plt.errorbar(mjd,bkg,yerr=e_bkg,color='red',fmt='.',label='9-12 keV')
+plt.errorbar(mjd,cxb,yerr=e_bkg,color='green',fmt='.',label='CXB')
+plt.errorbar(mjd,apec,yerr=e_bkg,color='gold',fmt='.',label='APEC')
+plt.errorbar(mjd,tot,yerr=e_bkg,color='black',fmt='+',ms=10)
+#plt.errorbar(mjd,apec_sb,yerr=e_apec_sb,color='green',fmt='.',label='APEC')
+#plt.errorbar(mjd,pl_sb,yerr=e_pl_sb,color='blue',fmt='.',label='PL')
+#plt.errorbar(mjd,total_sb,yerr=e_total_sb,color='black',fmt='.',label='APEC+PL')
+#plt.errorbar(mjd,rescaled_bkg,yerr=e_rescaled_bkg,color='gray',fmt='.',label=r'9-12keV $\rightarrow$ 0.5-1 keV')
+plt.xlabel('MJD')
+plt.ylabel('Cts/s/pixel')
+plt.yscale('log')
+plt.legend()
+plt.tight_layout()
 plt.show()
 
+#plt.figure()
+#plt.plot(mjd,diff,'k.')
+#plt.yscale('log')
+#plt.show()
+
+sys.exit()
 '''
 obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str')
 for i in range(len(obsid)):
@@ -119,52 +618,36 @@ for i in range(len(obsid)):
 	s.call('ds9 '+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img -scale log -scale mode 90 -zoom 0.65 -region '+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_broad_src-bkg.reg',shell=True)
 sys.exit()
 '''
-(mjd,bkg)=np.genfromtxt(wd+'avg_bkg_new.dat',unpack=True,usecols=[1,2],skip_header=1)
-plt.figure()
-plt.plot(mjd,cxb,'r.')
-#plt.plot(mjd,apec_sb,'g.')
-#plt.yscale('log')
-plt.show()
-sys.exit()
 
-cut=np.logspace(np.log10(1e-4),np.log10(1e-2),10)
-cut2=np.logspace(np.log10(1e-5),np.log10(1e-4),10)
 
-sp_frac=np.array([41./3999.,58./4145.,68./4288.,83./4437.,98./4571.,113./4677.,131./4780.,146./4878.,169./4974.,191./5039.])*100.
-sp_frac_f=np.array([95./6345.,118./6526.,147./6691.,175./6854.,198./6988.,223./7100.,259./7230.,292./7351.,336/7463.,373./7547.])*100.
-sp_frac_f2=np.array([42./5579.,47./5665.,50./5741.,56./5812.,59./5879.,64./5985.,71./6073.,81./6176.,90/6257.,95./6345.])*100.
+#cut=np.logspace(np.log10(1e-4),np.log10(1e-2),10)
+#cut2=np.logspace(np.log10(1e-5),np.log10(1e-4),10)
+cut=np.logspace(np.log10(5e-5),np.log10(1e-1),15)
+
+#sp_frac=np.array([41./3999.,58./4145.,68./4288.,83./4437.,98./4571.,113./4677.,131./4780.,146./4878.,169./4974.,191./5039.])*100.
+#sp_frac_f=np.array([95./6345.,118./6526.,147./6691.,175./6854.,198./6988.,223./7100.,259./7230.,292./7351.,336/7463.,373./7547.])*100.
+#sp_frac_f2=np.array([42./5579.,47./5665.,50./5741.,56./5812.,59./5879.,64./5985.,71./6073.,81./6176.,90/6257.,95./6345.])*100.
 
 #sp_frac_f_new=np.array([16./5487.,25./5710.,34./5968.,50./6206.,68./6455.,89./6688.,118./6906.,147./7098.,171./7228.,201./7355.])*100.
 #sp_frac_s_new=np.array([8./3228.,10./3420.,17./3611.,25./3775.,43./3944.,62./4102.,78./4231.,96./4332.,116./4410.,132./4466.])*100.
 #sp_frac_h_new=np.array([15./3276.,22./3468.,33./3672.,43./3874.,57./4079.,69./4264.,95./4448.,119./4588.,157./4719.,192./4821.])*100.
 
-cut3,sp_frac_f_new=np.genfromtxt(wd+'sim_all/sp_frac_broad.dat',unpack=True)
-sp_frac_s_new=np.genfromtxt(wd+'sim_all/sp_frac_soft.dat',unpack=True,usecols=1)
-sp_frac_h_new=np.genfromtxt(wd+'sim_all/sp_frac_hard.dat',unpack=True,usecols=1)
+sp_frac_f=np.genfromtxt(wd+'cdwfs_broad_sp-frac.dat',unpack=True,usecols=1)
+sp_frac_s=np.genfromtxt(wd+'cdwfs_soft_sp-frac.dat',unpack=True,usecols=1)
+sp_frac_h=np.genfromtxt(wd+'cdwfs_hard_sp-frac.dat',unpack=True,usecols=1)
 
 #add last 3 points to the full band with cut4=np.logspace(np.log10(1e-2),np.log10(3e-2),3) 
-cut4=np.logspace(np.log10(1e-2),np.log10(3e-2),3)
-sp_frac_f_new2=np.array([201./7355.,234./7425.,258./7483.])*100
+#cut4=np.logspace(np.log10(1e-2),np.log10(3e-2),3)
+#sp_frac_f_new2=np.array([201./7355.,234./7425.,258./7483.])*100
 
 plt.figure()
-'''
-plt.plot(cut,sp_frac_f,'k-',alpha=0.2)
-plt.plot(cut,sp_frac_f,'go',alpha=0.2)
-plt.plot(cut2,sp_frac_f2,'k-',alpha=0.2)
-plt.plot(cut2,sp_frac_f2,'go',alpha=0.2,label='Full band')
-plt.plot(cut,sp_frac,'k-',alpha=0.2)
-plt.plot(cut,sp_frac,'ro',alpha=0.2,label='Hard band')
-'''
-plt.plot(cut3,sp_frac_f_new,'k-')
-plt.plot(cut3,sp_frac_f_new,'yo',label='New full band')
-plt.plot(cut4,sp_frac_f_new2,'k-')
-plt.plot(cut4,sp_frac_f_new2,'yo')
 
-plt.plot(cut3,sp_frac_s_new,'k-')
-plt.plot(cut3,sp_frac_s_new,'co',label='New soft band')
-
-plt.plot(cut3,sp_frac_h_new,'k-')
-plt.plot(cut3,sp_frac_h_new,'mo',label='New hard band')
+plt.plot(cut,sp_frac_f,'k-')
+plt.plot(cut,sp_frac_f,'ko',label='Full band')
+plt.plot(cut,sp_frac_s,'g-')
+plt.plot(cut,sp_frac_s,'go',label='Soft band')
+plt.plot(cut,sp_frac_h,'r-')
+plt.plot(cut,sp_frac_h,'ro',label='Hard band')
 
 plt.axhline(y=1.0)
 plt.axhline(y=3.0)
@@ -174,6 +657,7 @@ plt.ylabel('Sp fraction (%)')
 plt.legend()
 plt.tight_layout()
 plt.show()
+sys.exit()
 '''
 d=np.genfromtxt(wd+'sim_all/cdwfs_broad_sim_poiss_matched.dat',unpack=True,usecols=5)
 d2=np.genfromtxt(wd+'sim_all/cdwfs_soft_sim_poiss_matched.dat',unpack=True,usecols=5)

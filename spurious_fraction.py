@@ -10,7 +10,8 @@ from astropy.io import fits
 wd='/Users/alberto/Desktop/XBOOTES/'
 
 obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str')
-
+print('You are probably running the wrong script. Maybe you wanted reliability.py? Exit.')
+sys.exit()
 for band in ['broad']:
     #create Poissonian realization of backmaps (they are instrumental only...)    
     for obs in obsid:

@@ -5,6 +5,8 @@ from astropy.io import fits
 import os
 import matplotlib.pyplot as plt
 import random
+from scipy.stats import norm
+import matplotlib.mlab as mlab
 
 def gauss(x,mu,sigma):
 	g=np.exp(-(x-mu)**2/(2*sigma**2))
@@ -12,9 +14,9 @@ def gauss(x,mu,sigma):
 	
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-band='broad'
-band2='broad'
-band3='05to7'
+band='hard'
+band2='hard'
+band3='2to7'
 
 obs=np.genfromtxt(wd+'data_counts.dat',unpack=True, usecols=1,dtype='str')
 diff1,diff2,exp=[],[],[]
@@ -44,60 +46,60 @@ for i in range(len(obs)):
 	#hh=fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_expomap.fits')
 	#header=hh[0].header
 	
-	''''
+	
 	if band == 'soft':
 		if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits') == True:
 			image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits')
 			out=image[0].data
 			image.close()
 			
-			hdu = fits.PrimaryHDU(out,header=header)
-			hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
+			#hdu = fits.PrimaryHDU(out,header=header)
+			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
 			
-			image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
-			out=image[0].data
-			image.close()
+			#image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
+			#out=image[0].data
+			#image.close()
 			
-			hdu = fits.PrimaryHDU(out,header=header)
-			hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
+			#hdu = fits.PrimaryHDU(out,header=header)
+			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
 			
 		else:
 			image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
 			out=image[0].data
 			image.close()
 			
-			hdu = fits.PrimaryHDU(out,header=header)
-			hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
+			#hdu = fits.PrimaryHDU(out,header=header)
+			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
 	elif band=='hard':
 		if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits') == True:
 			image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits')
 			out=image[0].data
 			image.close()
 			
-			hdu = fits.PrimaryHDU(out,header=header)
-			hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
+			#hdu = fits.PrimaryHDU(out,header=header)
+			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
 			
-			image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_instr.fits')
-			out=image[0].data
-			image.close()
+			#image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_instr.fits')
+			#out=image[0].data
+			#image.close()
 			
-			hdu = fits.PrimaryHDU(out,header=header)
-			hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
+			#hdu = fits.PrimaryHDU(out,header=header)
+			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
 		else:
 			image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_instr.fits')
 			out=image[0].data
 			image.close()
 			
-			hdu = fits.PrimaryHDU(out,header=header)
-			hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
+			#hdu = fits.PrimaryHDU(out,header=header)
+			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
 	else:
 		image=fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits')
 		out=image[0].data
-		image,close()
+		image.close()
 		
-		hdu = fits.PrimaryHDU(out,header=header)
-		hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
-	'''
+		#hdu = fits.PrimaryHDU(out,header=header)
+		#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
+	
 	#out=image[0].data
 	
 	#hdu = fits.PrimaryHDU(out,header=header)
@@ -136,13 +138,13 @@ for i in range(len(obs)):
 	'''
 	#print(cts2,np.sum(out))
 	
-	#diff=cts2-np.sum(out) # Difference between total bkg and instrumental one
+	diff=cts2-np.sum(out) # Difference between total bkg and instrumental one
 	#e_diff=np.sqrt(cts2+(F*np.sum(img))) # 1sigma unc on difference
-	#e_diff=np.sqrt(cts2+np.sum(out)) # 1sigma unc on difference
+	e_diff=np.sqrt(cts2+np.sum(out)) # 1sigma unc on difference
 	
-	#diff1.append(diff/e_diff)
+	diff1.append(diff/e_diff)
 	
-	
+	'''
 	if band == 'soft':
 		if diff > 0.:
 			
@@ -283,7 +285,7 @@ for i in range(len(obs)):
 		diff=cts2-np.sum(fullbkg) # Difference between total bkg and instrumental one
 		e_diff=np.sqrt(cts2+np.sum(fullbkg)) # 1sigma unc on difference
 		diff1.append(diff/e_diff)
-	
+	'''
 #sys.exit()
 #print(np.min(diff1),np.max(diff1))
 #plt.figure()
@@ -292,21 +294,18 @@ for i in range(len(obs)):
 #plt.savefig(wd+'cdwfs_bkg_'+band+'_scalingfactor.pdf',format='pdf')
 #plt.show()
 
-#mu=0
-#sigma=1.5
-#xx=np.linspace(mu-4*sigma,mu+4*sigma,1000)
-#p=[]
-#for ii in range(len(xx)):
-#	p.append(gauss(xx[ii],mu,sigma))
-#p=np.array(p)
-#new=33*p
+(mu, sigma) = norm.fit(diff1)
+print(mu,sigma)
 
 #print(np.min(diff2),np.max(diff2))
 plt.figure()
-plt.hist(diff1,bins=20)
+n, bins, patches = plt.hist(diff1,bins=20,normed=1)
+# add a 'best fit' line
+y = mlab.normpdf( bins, mu, sigma)
+l = plt.plot(bins, y, 'r--', linewidth=2)
 #plt.plot(exp,diff1,'k.')
 #plt.xscale('log')
 plt.xlabel('Sigma deviation (Bkg_fromdata - Bkg_instr)')
 plt.ylabel('N')
-plt.savefig(wd+'cdwfs_bkg_'+band+'_instr.pdf',format='pdf')
+plt.savefig(wd+'cdwfs_bkg_'+band+'.pdf',format='pdf')
 #plt.show()
