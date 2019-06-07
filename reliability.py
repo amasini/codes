@@ -6,13 +6,20 @@ import matplotlib.pyplot as plt
 import time
 from ciao_contrib.region.check_fov import FOVFiles
 
+def build_struct(a,b,c,d,e):
+	s=[]
+	for j in range(len(a)):
+		s.append([a[j],b[j],c[j],d[j],e[j]])
+	s=np.array(s)
+	return s
+	
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180*3.141592)
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600)**2 +((pointa[1]-pointb[1])*3600)**2)
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-band='broad'
+band=str(sys.argv[1])
 
 ###########################
 # define some gammas and list the conversion factors from PIMMS, plus the ratio to the full band flux
@@ -36,8 +43,23 @@ for i in range(len(xvals)):
 fluxinterp_s = np.interp(xvals, gamma, fluxrat_s)
 #############################
 
+'''
+#take list of sources in input to simulation
+(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma)=np.genfromtxt(wd+'poiss_rand_lehmer.dat',unpack=True,skip_header=1)
+### NEED TO FILTER THESE SOURCES WITH THE TOTAL FOV OF THE CDWFS, SOME OF THEM ARE OUTSIDE 
+### AND CANNOT BE MATCHED BY DEFINITION
+w=open(wd+'poiss_rand_lehmer_filtered.dat','w')
+w.write('Flux \t RA \t DEC \t Gamma \n')
+my_obs = FOVFiles('@'+wd+'fov.lis')
+for i in range(len(ra_cdwfs)):
+	myobs = my_obs.inside(ra_cdwfs[i], dec_cdwfs[i])
+	if len(myobs) > 0:
+		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \t '+str(gamma[i])+' \n')
+w.close()
+#print(len(ra_cdwfs))
+'''
 #take filtered list of sources in input to simulation
-(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmerx20_filtered.dat',unpack=True,skip_header=1)
+(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmer_filtered.dat',unpack=True,skip_header=1)
 for m in range(len(gamma_cdwfs)):
 	if band=='soft':
 		flux_ratio=fluxinterp_s[xvals==gamma_cdwfs[m]]
@@ -46,13 +68,17 @@ for m in range(len(gamma_cdwfs)):
 		flux_ratio=1-fluxinterp_s[xvals==gamma_cdwfs[m]]
 		flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
 
-#take catalog of detected sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap)
-cat1=fits.open(wd+'cdwfs_'+band+'_cat1_sim.fits')
+# Sort them to start from the bright ones
+ra_cdwfs=ra_cdwfs[::-1]
+dec_cdwfs=dec_cdwfs[::-1]
+flux_cdwfs=flux_cdwfs[::-1]
 
-'''
+#take catalog of detected sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap) cleaned by multiple sources (cat1)
+cat1=fits.open(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat1.fits')
+
 #Loop on the cuts
 #cut detected sample at a given probability threshold 
-cut=np.logspace(np.log10(5e-5),np.log10(1e-1),15)
+cut=np.logspace(np.log10(1e-6),np.log10(1e-1),15)
 
 detected,spurious=[],[]
 for l in range(len(cut)):
@@ -72,9 +98,9 @@ for l in range(len(cut)):
 	#detml=detml[prob<=cut[l]]
 	flux_k=flux_k[prob<=cut[l]]
 	prob=prob[prob<=cut[l]]
-
+	
 	detected.append(len(ra_k))
-
+	pool=build_struct(ra_k,dec_k,r90,flux_k,prob)
 	
 	#take list of sources in input to simulation
 	#(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',unpack=True,skip_header=1)
@@ -89,8 +115,88 @@ for l in range(len(cut)):
 	#		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \t '+str(gamma_cdwfs[i])+'\n')
 	#w.close()
 	#print(len(ra_cdwfs))
+	print('Starting to match...')
+	t_in=time.time()
+	flux_inp,flux_out=[],[]
+	unmatched,blendings=0,0
+	newpool=pool
+	for i in range(len(ra_cdwfs)):
+		input_source=[ra_cdwfs[i],dec_cdwfs[i]]
 	
+		found=0
+		counterparts=[]
+		count=0
+	
+		#print(len(newpool[:,0]))
 
+		delta = 0.014 #(0.028 ~100")
+		ra_d_filt=newpool[:,0][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		dec_d_filt=newpool[:,1][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		flux_d_filt=newpool[:,3][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		r90_d_filt=newpool[:,2][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		prob_d_filt=newpool[:,4][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		counterparts,probabilities,distances,mat_rad=[],[],[],[]
+		for j in range(len(ra_d_filt)):
+			cdwfs_source=[ra_d_filt[j],dec_d_filt[j]]
+			match_rad=1.1*r90_d_filt[j]
+			d=distance(input_source,cdwfs_source)
+			if d <= match_rad: #found a match
+				if found==0: #it's the first
+					found=1
+					#flux_inp.append(flux_cdwfs_filt[j])
+					#flux_out.append(flux_d[i])
+					counterparts.append(flux_d_filt[j])
+					probabilities.append(prob_d_filt[j])
+					distances.append(d)
+					mat_rad.append(match_rad)
+				else: #it's not the first match	
+					count=count+2
+					blendings=blendings+1
+					counterparts.append(flux_d_filt[j])
+					probabilities.append(prob_d_filt[j])
+					distances.append(d)
+					mat_rad.append(match_rad)
+					#print('Found the '+str(count)+'nd/rd/th counterpart to '+str(kenter_source))
+		if found == 1:
+			if len(counterparts) == 1:
+				flux_inp.append(flux_cdwfs[i])
+				flux_out.append(counterparts[0])
+				#r90eff.append(mat_rad[0])
+				#deff.append(distances[0])
+				#print(len(newpool[:,0]))
+				#print(len(newpool[newpool[:,3]==counterparts[0]]),newpool[newpool[:,3]==counterparts[0]])
+				newpool=np.delete(newpool,np.where(newpool[:,3]==counterparts[0]),0)
+				#print(len(newpool[:,0]))
+			else:
+				counterparts=np.array(counterparts)
+				probabilities=np.array(probabilities)
+				mat_rad=np.array(mat_rad)
+				distances=np.array(distances)
+				flux_inp.append(flux_cdwfs[i])
+				flux_out.append(counterparts[probabilities==np.min(probabilities)])
+				#r90eff.append(mat_rad[probabilities==np.min(probabilities)])
+				#deff.append(distances[probabilities==np.min(probabilities)])
+				#print(len(newpool[newpool[:,3]==counterparts[probabilities==np.min(probabilities)]]),newpool[newpool[:,3]==counterparts[probabilities==np.min(probabilities)]])
+				#print(len(newpool[:,0]))
+				newpool=np.delete(newpool,np.where(newpool[:,3]==counterparts[probabilities==np.min(probabilities)]),0)
+				#print(len(newpool[:,0]))
+				#sys.exit()
+	
+		else:
+			unmatched=unmatched+1
+
+	t_out=time.time()
+	print('*'*20)
+	print('P cut:',cut[l])
+	print(len(ra_cdwfs), 'in input')
+	print(len(flux_inp), 'matched')
+	print(unmatched, 'unmatched from input')
+	print(len(newpool), 'spurious')
+	print(blendings,' blendings')
+	print(float(t_out-t_in),' seconds for the match.')
+	print('*'*20)
+	spurious.append(len(newpool))
+	'''
 	print('Starting to match...')
 	t_in=time.time()
 	flux_inp,flux_out=[],[]
@@ -135,31 +241,33 @@ for l in range(len(cut)):
 	print('*'*15)
 	#print(blendings,' blendings')
 	#print(float(t_out-t_in)/60.,' minutes for the match.')
-
+	'''
 sp_frac=[]
 for k in range(len(spurious)):
 	sp_frac.append(float(spurious[k])/float(detected[k])*100.)
 
-
 # Write out sp fraction as a function of probability cut
-w=open(wd+'cdwfs_'+band+'_sp-frac.dat','w')
+w=open(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sp-frac.dat','w')
 for i in range(len(cut)):
 	w.write(str(cut[i])+' \t '+str(sp_frac[i])+'\n')
 w.close()
 
-plt.figure()
-plt.plot(cut,sp_frac,'k-')
-plt.plot(cut,sp_frac,'go')
-plt.axhline(y=1.0)
-plt.axhline(y=3.0)
-plt.xscale('log')
-plt.xlabel('Prob cut')
-plt.ylabel('Sp fraction (%)')
-plt.tight_layout()
-plt.show()
+#plt.figure()
+#plt.plot(cut,sp_frac,'go',linestyle='-')
+#plt.axhline(y=1.0)
+#plt.axhline(y=3.0)
+#plt.xscale('log')
+#plt.xlabel('Prob cut')
+#plt.ylabel('Sp fraction (%)')
+#plt.tight_layout()
+#plt.show()
+
 #sp_frac in the hard band
 #sp_frac=np.array([41./3999.,58./4145.,68./4288.,83./4437.,98./4571.,113./4677.,131./4780.,146./4878.,169./4974.,191./5039.])*100.
-'''
+
+####################
+sys.exit()         #
+####################
 
 ### Once the cuts are established, make checks and plots. Use 99% reliability
 if band=='soft':

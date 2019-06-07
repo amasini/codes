@@ -16,6 +16,7 @@ import os
 import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
 from scipy import stats
+from collections import OrderedDict
 
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180*3.141592)
@@ -27,32 +28,226 @@ def integrand(x,a):
 def gauss(x,mu,sigma):
 	g=np.exp(-(x-mu)**2/(2*sigma**2))
 	return g
+
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-#expmap=fits.open(wd+'new_mosaics_detection/cdwfs_broad_expomap_4reb.fits')
+# Divide each 4x4 pixel of expomap by 16 and divide psfmap (r90*exp) by expomap to have weighted average
+#field='xbootes'
+#band='soft'
+
+#with fits.open(wd+'new_mosaics_detection/'+field+'_'+band+'_expomap_4reb.fits', mode='update') as hdul:
+#	# Change something in hdul.
+#	hdul[0].data=hdul[0].data/16.0
+#	hdul.flush()  # changes are written back
+
+#expmap=fits.open(wd+'new_mosaics_detection/'+field+'_'+band+'_expomap_4reb.fits')
 #exp=expmap[0].data
 
-#with fits.open(wd+'psfmaps/cdwfs_broad_r90sq-x-exp_4reb-cp.fits', mode='update') as hdul:
+#s.call('cp '+wd+'psfmaps/'+field+'_'+band+'_r90sq-x-exp_4reb.fits '+wd+'psfmaps/'+field+'_'+band+'_r90sq-x-exp_4reb-cp.fits',shell=True)
+#with fits.open(wd+'psfmaps/'+field+'_'+band+'_r90sq-x-exp_4reb-cp.fits', mode='update') as hdul:
 #	# Change something in hdul.
 #	hdul[0].data=hdul[0].data/(16.0*exp)
 #	hdul[0].data[np.isnan(hdul[0].data)]=0.0
 #	hdul.flush()  # changes are written back
 #sys.exit()
+'''
+cat=fits.open('/Users/alberto/Downloads/nway-master/cdwfs_kochanek_I-K-3.6mu.fits')
+matchcol=cat[1].data['match_flag']
+pany=cat[1].data['p_any']
+ra=cat[1].data['CHANDRA_RA']
+dec=cat[1].data['CHANDRA_DEC']
+fluxs=cat[1].data['CHANDRA_FLUX_S']
+fluxh=cat[1].data['CHANDRA_FLUX_H']
+imag=cat[1].data['AGES_Imag']
+zsp=cat[1].data['AGES_z1']
+zph=cat[1].data['AGES_zph']
+sep=cat[1].data['Separation_AGES_CHANDRA']
+
+p_any_cut=0.0
+
+sep=sep[(matchcol==1) & (pany>p_any_cut)]
+ra=ra[(matchcol==1) & (pany>p_any_cut)]
+dec=dec[(matchcol==1) & (pany>p_any_cut)]
+zsp=zsp[(matchcol==1) & (pany>p_any_cut)]
+zph=zph[(matchcol==1) & (pany>p_any_cut)]
+p_any=pany[(matchcol==1) & (pany>p_any_cut)]
+Imag=imag[(matchcol==1) & (pany>p_any_cut)]
+fluxs=fluxs[(matchcol==1) & (pany>p_any_cut)]
+fluxh=fluxh[(matchcol==1) & (pany>p_any_cut)]
+# CUT OF P_ANY from NWAY
+zsp_good=zsp[~np.isnan(zsp) & (zsp>=0.0)]
+zph_good=zph[np.isnan(zsp) | (zsp<0.0)]
+ra_zph=ra[np.isnan(zsp) | (zsp<0.0)]
+dec_zph=dec[np.isnan(zsp) | (zsp<0.0)]
+ra_zph=ra_zph[~np.isnan(zph_good)]
+dec_zph=dec_zph[~np.isnan(zph_good)]
+Imag_ph=Imag[np.isnan(zsp) | (zsp<0.0)]
+Imag_ph=Imag_ph[~np.isnan(zph_good)]
+zph_good=zph_good[~np.isnan(zph_good)]
+
+z=list(zsp_good)+list(zph_good)
+
+print('Total sources in X-ray catalog with secure opt match:',len(z))
+print('Of which',len(zsp_good),'are GOOD (>=0) spec-z')
+print('And the remaining',len(zph_good),'are photo-z')
+print('Spec-z range:',np.min(zsp_good),'-',np.max(zsp_good))
+
+ra_zsp=ra[~np.isnan(zsp) & (zsp>=0.0)]
+dec_zsp=dec[~np.isnan(zsp) & (zsp>=0.0)]
+Imag_zsp=Imag[~np.isnan(zsp) & (zsp>=0.0)]
+#w=open(wd+'cdwfs_coord_zspec.reg','w')
+#for i in range(len(ra_zsp)):
+#	w.write('circle('+str(ra_zsp[i])+'d,'+str(dec_zsp[i])+'d,15\") #color=blue width=4 \n')
+#w.close()
+
+#w=open(wd+'cdwfs_coord_zphot.reg','w')
+#for i in range(len(ra_zph)):
+#	w.write('circle('+str(ra_zph[i])+'d,'+str(dec_zph[i])+'d,15\") #color=red width=4\n')
+#w.close()
+
+bins=np.linspace(0,5,51)
+
+plt.figure()
+plt.hist(z,bins=bins,histtype='step',color='k',linewidth=3)
+plt.hist(zsp_good,bins=bins,histtype='step',color='b',linestyle='dashed',label=str(len(zsp_good))+' spec-z')
+plt.hist(zph_good,bins=bins,histtype='step',color='r',linestyle='dashed',label=str(len(zph_good))+' photo-z')
+plt.xlabel(r'$z$')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+bins=np.linspace(np.min(Imag[Imag>0.]),np.max(Imag[Imag>0.]),31)
+
+plt.figure()
+plt.hist(Imag[Imag>0.],bins=bins,histtype='step',color='k',linewidth=3)
+plt.hist(Imag_zsp[Imag_zsp>0.],bins=bins,histtype='step',color='b',label='Spec-z')
+plt.hist(Imag_ph[Imag_ph>0.],bins=bins,histtype='step',color='r',label='Photo-z')
+plt.xlabel(r'I-band magnitude')
+plt.axvline(x=22.5,color='g',label='AGES limiting mag')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+plt.figure()
+plt.plot(sep[Imag>0.],Imag[Imag>0.],'b.')
+plt.xlabel(r'CDWFS-Opt separation ["]')
+plt.ylabel(r'I-band magnitude')
+plt.tight_layout()
+plt.show()
+
+#plt.figure()
+#plt.plot(fluxs[Imag>0.],Imag[Imag>0.],'r.')
+#plt.xscale('log')
+#plt.axis([1e-16,1e-12,12,28])
+#plt.show()
+
+#plt.figure()
+#plt.plot(fluxh[Imag>0.],Imag[Imag>0.],'r.')
+#plt.xscale('log')
+#plt.axis([1e-16,1e-12,12,28])
+#plt.show()
+
+#gamma=np.genfromtxt(wd+'poiss_rand_lehmer.dat',unpack=True,skip_header=1,usecols=3)
+#plt.figure()
+#plt.hist(gamma,bins=20)
+#plt.show()
+
+
+plt.figure()
+
+color=['green','red','blue']
+for source in ['','sim/','sim_all_new/']:
+	i=0
+	if source == '':
+		mark='o'
+		for band in ['broad','soft','hard']:
+			cut,sp_frac=np.genfromtxt(wd+source+'cdwfs_'+band+'_sp-frac.dat',unpack=True)
+			plt.plot(cut,sp_frac,marker=mark,color=color[i],linestyle='-',label=band,alpha=0.1)
+			i=i+1
+	elif source == 'sim/':
+		mark='*'
+		for band in ['broad','soft','hard']:
+			spfr=[]
+			for j in range(10):
+				cut,sp_frac=np.genfromtxt(wd+source+str(j)+'cdwfs_'+band+'_sp-frac.dat',unpack=True)
+				spfr.append(sp_frac)
+				plt.plot(cut,sp_frac,marker=mark,color=color[i],linestyle='-',alpha=0.1)
+			spfr=np.array(spfr)
+			#print(spfr)
+			#print('*'*15)
+			av,med,emed=[],[],[]
+			for ii in range(spfr.shape[1]):
+				med.append(np.median(spfr[:,ii]))
+				av.append(np.mean(spfr[:,ii]))
+				emed.append(np.std(spfr[:,ii]))
+			plt.errorbar(cut,med,yerr=emed,marker='s',color=color[i],linestyle='-',label=band)
+			#plt.errorbar(cut,av,yerr=emed,marker='D',color=color[i],linestyle='-',label=band)
+			i=i+1
+	else:
+		mark='D'
+		for band in ['broad','soft','hard']:
+			spfr=[]
+			for j in range(10):
+				cut,sp_frac=np.genfromtxt(wd+source+str(j)+'cdwfs_'+band+'_sp-frac.dat',unpack=True)
+				spfr.append(sp_frac)
+				plt.plot(cut,sp_frac,marker=mark,color=color[i],linestyle='--',alpha=0.1)
+			spfr=np.array(spfr)
+			av,med,emed=[],[],[]
+			for ii in range(spfr.shape[1]):
+				med.append(np.median(spfr[:,ii]))
+				av.append(np.mean(spfr[:,ii]))
+				emed.append(np.std(spfr[:,ii]))
+			plt.errorbar(cut,med,yerr=emed,marker='d',color=color[i],linestyle='--',label=band)
+			i=i+1
+			
+plt.axhline(y=1.0)
+plt.axhline(y=3.0)
+plt.xscale('log')
+plt.xlabel('Prob cut')
+plt.ylabel('Sp fraction (%)')
+handles, labels = plt.gca().get_legend_handles_labels()
+by_label = OrderedDict(zip(labels, handles))
+plt.legend(by_label.values(), by_label.keys())
+plt.tight_layout()
+plt.show()
+
 
 cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1.fits')
+ra=cat[1].data['RA']
+dec=cat[1].data['DEC']
+r90f=cat[1].data['R90_F']
+r90s=cat[1].data['R90_S']
+r90h=cat[1].data['R90_H']
+totf=cat[1].data['TOT_F']
+tots=cat[1].data['TOT_S']
+toth=cat[1].data['TOT_H']
+bkgf=cat[1].data['BKG_F']
+bkgs=cat[1].data['BKG_S']
+bkgh=cat[1].data['BKG_H']
 ctsf=cat[1].data['NET_F']
+ectsf_u=cat[1].data['E_NET_F_+']
 ctss=cat[1].data['NET_S']
+ectss_u=cat[1].data['E_NET_S_+']
 ctsh=cat[1].data['NET_H']
+ectsh_u=cat[1].data['E_NET_H_+']
 poserr=cat[1].data['POS_ERR']
 hr=cat[1].data['HR']
+ehr_n=cat[1].data['E_HR_-']
+ehr_p=cat[1].data['E_HR_+']
 fluxf=cat[1].data['FLUX_F']
 fluxs=cat[1].data['FLUX_S']
 fluxh=cat[1].data['FLUX_H']
+probs=cat[1].data['PROB_S']
 probf=cat[1].data['PROB_F']
 
+
 poserr=poserr[fluxf>0]
+ectsf_u=ectsf_u[ctsf>0]
 ctsf=ctsf[ctsf>0]
+ectss_u=ectss_u[ctss>0]
 ctss=ctss[ctss>0]
+ectsh_u=ectsh_u[ctsh>0]
 ctsh=ctsh[ctsh>0]
 probf=probf[fluxf>0]
 
@@ -70,6 +265,7 @@ gs.update(wspace=0., hspace=0.)
 
 ax1 = plt.subplot(gs[0:2, 0:2])
 ax1.hexbin(fluxf2,hr2,xscale='log',bins='log',gridsize=30)
+#ax1.axhline(y=-0.2,color='r',linestyle='dashed',linewidth=3)
 #ax1.xaxis.set_visible(False)
 #ax1.yaxis.set_visible(False)
 ax1.set_xscale('log')
@@ -86,10 +282,21 @@ ax1.set_ylabel('HR',fontsize=13)
 #plt.ylabel('HR',fontsize=13)
 #plt.tick_params(which='major',labelsize=13)
 #plt.xscale('log')
-hr=hr[hr!=-99]
 
+obs=hr[hr>-0.2]
+unobs=hr[hr<-0.2]
+print(len(hr),len(obs),len(unobs))
+hr_con=hr[((hr+ehr_p)!=1) & ((hr-ehr_n)!=-1)]
+hr_lol=hr[(hr+ehr_p)==1]
+hr_upl=hr[(hr-ehr_n)==-1]
+
+bins=np.linspace(-1,1,30)
 ax2 = plt.subplot(gs[0:2, 2:3])
-ax2.hist(hr,bins=30,color='gold',edgecolor='k',orientation='horizontal')
+ax2.hist(hr_con,bins=bins,color='black',histtype='step',orientation='horizontal',linewidth=2)
+ax2.hist(hr_upl,bins=bins,color='blue',histtype='step',orientation='horizontal',linewidth=1)
+ax2.hist(hr_lol,bins=bins,color='red',histtype='step',orientation='horizontal',linewidth=1)
+#ax2.hist(hr,bins=30,color='gold',edgecolor='k',orientation='horizontal')
+ax2.axhline(y=-0.2,color='r',linestyle='dashed',linewidth=3)
 #ax2.xaxis.set_visible(False)
 ax2.set_xlabel('#')
 ax2.yaxis.set_visible(False)
@@ -138,11 +345,16 @@ plt.tight_layout()
 plt.show()
 #plt.savefig(wd+'cdwfs_full_flux.pdf',format='pdf')
 
+#this cuts out the UpperLims
+ctsf=ctsf[ectsf_u!=0.0]
+ctss=ctss[ectss_u!=0.0]
+ctsh=ctsh[ectsh_u!=0.0]
+
 bins=np.logspace(np.log10(min(ctsf)),np.log10(max(ctsf)),30)
 plt.figure()
-plt.hist(ctsf,bins=bins,label='F')
-plt.hist(ctss,bins=bins,label='S')
-plt.hist(ctsh,bins=bins,label='H')
+plt.hist(ctsf,bins=bins,label='F',histtype='step')
+plt.hist(ctss,bins=bins,label='S',histtype='step')
+plt.hist(ctsh,bins=bins,label='H',histtype='step')
 plt.xlabel('Net cts',fontsize=13)
 plt.tick_params(which='major',labelsize=13)
 plt.xscale('log')
@@ -151,42 +363,6 @@ plt.tight_layout()
 plt.show()
 #plt.savefig(wd+'cdwfs_net_distr.pdf',format='pdf')
 #sys.exit()
-
-#with fits.open(wd+'new_mosaics_detection/cdwfs_hard_expomap_4reb.fits', mode='update') as #hdul:
-#	# Change something in hdul.
-#	hdul[0].data=hdul[0].data/16.0
-#	hdul.flush()  # changes are written back
-
-#sys.exit()
-'''
-cat=fits.open(wd+'new_mosaics_detection/xbootes_broad_cat0.fits')
-ra=cat[1].data['RA']
-dec=cat[1].data['DEC']
-r90=cat[1].data['AV_R90']
-tot=cat[1].data['TOT']
-
-ra=ra[tot>=4]
-dec=dec[tot>=4]
-r90=r90[tot>=4]
-
-ken=fits.open(wd+'xbootes_kenter+05.fits')
-rak=ken[1].data['RAJ2000']
-deck=ken[1].data['DEJ2000']
-found=0
-for i in range(len(ra)):
-	my=[ra[i],dec[i]]
-	at_least_one=0
-	for j in range(len(rak)):
-		xb=[rak[j],deck[j]]
-		d=distance(my,xb)
-		if d <= 1.1*r90[i]:
-			if at_least_one==0:
-				at_least_one=1
-				found=found+1
-print(len(ra),len(rak))
-print(found,'matches')
-			
-sys.exit()
 '''
 
 obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str')
@@ -353,7 +529,7 @@ plt.savefig(wd+'cdwfs_sp-frac.pdf',format='pdf')
 
 sys.exit()
 
-'''
+
 x=np.linspace(0,5,101)
 sigma=np.sqrt(0.2**2+1.0**2)
 y=2*np.pi*x/(np.sqrt(2*np.pi)*sigma)*gauss(x,0,sigma)
@@ -392,7 +568,7 @@ qvals = np.interp(xvals, bqnew, q)
 nvals = np.interp(xvals, bnew, nnew)
 diff=qvals-nvals
 
-'''
+
 # Cubic interpolation
 #fq2 = interp1d(bqnew, q, kind='cubic')
 #fn2 = interp1d(bnew, nnew, kind='cubic')
@@ -402,7 +578,7 @@ diff=qvals-nvals
 #qvals2=fq2(xvalsq2)
 #nvals2=fn2(xvalsn2)
 #diff2=qvals2-nvals2
-'''
+
 w=open(wd+'LR_qprimom_'+band+'.dat','w')
 for k in range(len(diff)):
 	w.write(str(xvals[k])+' \t '+str(diff[k])+'\n')
@@ -431,9 +607,8 @@ print(diff3,np.sum(diff3))
 
 sys.exit()
 
-'''
 
-'''
+
 # Open Chung+14 catalog
 cat3=fits.open(wd+'xbootes_chung+14.fits')
 ra_chu=cat3[1].data['RAJ2000']
@@ -558,7 +733,7 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 #sys.exit()
-'''
+
 
 #(obs,apec_cr,pl_cr,exp,pixarea,apec_sb,apec,pl_sb,pl)=np.genfromtxt(wd+'apec_cr_soft_with-gauss-line.dat',unpack=True, skip_header=1)
 (cxb,apec)=np.genfromtxt(wd+'BACK_soft.dat',unpack=True, skip_header=1,usecols=[1,2])
@@ -605,7 +780,7 @@ plt.show()
 #plt.show()
 
 sys.exit()
-'''
+
 obsid=np.genfromtxt(wd+'data_counts.dat',unpack=True,usecols=1,dtype='str')
 for i in range(len(obsid)):
 	if len(obsid[i]) == 4:
@@ -617,7 +792,7 @@ for i in range(len(obsid)):
 		
 	s.call('ds9 '+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_repro_05to7keV_4rebinned.img -scale log -scale mode 90 -zoom 0.65 -region '+wd+'data/'+obsid[i]+'/repro_new_asol/acisf'+stem+'_broad_src-bkg.reg',shell=True)
 sys.exit()
-'''
+
 
 
 #cut=np.logspace(np.log10(1e-4),np.log10(1e-2),10)
@@ -658,7 +833,7 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 sys.exit()
-'''
+
 d=np.genfromtxt(wd+'sim_all/cdwfs_broad_sim_poiss_matched.dat',unpack=True,usecols=5)
 d2=np.genfromtxt(wd+'sim_all/cdwfs_soft_sim_poiss_matched.dat',unpack=True,usecols=5)
 d3=np.genfromtxt(wd+'sim_all/cdwfs_hard_sim_poiss_matched.dat',unpack=True,usecols=5)
@@ -704,7 +879,7 @@ plt.ylabel('Cumulative fraction')
 plt.axis([0,6,0,1])
 plt.tight_layout()
 plt.show()
-'''
+
 band='hard'
 if band=='broad':
 	cut97=1.4e-2
@@ -789,7 +964,7 @@ plt.hist(N,bins=int(bins),histtype='step',alpha=0.5)
 plt.hist(r,bins=int(bins),histtype='step',alpha=0.5)
 plt.show()
 sys.exit()
-'''
+
 band='soft'
 #cat=fits.open(wd+'cdwfs_broad_cat0.fits')
 #cat=fits.open(wd+'murray_sens/xbootes_unique_2.fits')
@@ -887,7 +1062,7 @@ for i in range(len(src_ra)):
 	w.write('circle('+str(src_ra[i])+'d, '+str(src_dec[i])+'d, 5\") #color=yellow \n')
 	#w.write('circle('+str(ra[i])+'d, '+str(dec[i])+'d, 3\") #color=cyan \n')
 w.close()
-'''
+
 
 w=open(wd+'cdwfs_broad_cat0.reg','w')
 for i in range(len(ra)):
@@ -915,7 +1090,7 @@ cat=Table([out_ra,out_dec,cts_f,cts_s,cts_h,flux_f*1e-15,flux_s*1e-15,flux_h*1e-
 cat.write(wd+'xbootes_kenter_cat0.fits',format='fits',overwrite=True) 
 
 sys.exit()
-'''
+
 bins=np.logspace(np.log10(1e-16),np.log10(1e-12),20)
 
 plt.figure()
@@ -925,7 +1100,7 @@ plt.xlabel(r'0.5-7 keV flux (erg cm$^{-2}$ s$^{-1}$)',fontsize=13)
 plt.ylabel('N',fontsize=13)
 plt.tight_layout()
 plt.savefig(wd+'cdwfs_broad_flux_distr.pdf',format='pdf',dpi=1000)
-'''
+
 
 plt.figure()
 plt.plot(det,cts,'k.')

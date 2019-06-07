@@ -10,6 +10,9 @@ from astropy.table import Table
 ##from sherpa.astro.ui import *
 #from pycrates import *
 
+print('Maybe you wanted to use the faster script clean_multiple_sources_v2.py?')
+sys.exit()
+
 def distance(pointa, pointb):
 	"""
 	Function that calculates the distance
@@ -95,13 +98,14 @@ def main():
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-band='broad'
+band='hard'
 
 tstart= datetime.datetime.now()
 #read the file and put it in memory
 file_in_memory = []
 
-hdul=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0.fits') #file to clean, with duplicates (blendings)
+#hdul=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0.fits') #file to clean, with duplicates (blendings)
+hdul=fits.open(wd+'sim/cdwfs_'+band+'_sim_cat0.fits') #file to clean, with duplicates (blendings)
 
 prob=hdul[1].data['PROB']
 file=hdul[1].data
@@ -157,8 +161,9 @@ for i in range(len(final_list)):
 	e_flux_lo.append(final_list[i][15])	
 
 #write catalog
-cat=Table([ra,dec,prob,av_r90,tot,bkg,net,e_net_up,e_net_lo,exptime,cr,e_cr_up,e_cr_lo,flux,e_flux_up,e_flux_lo],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','e_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
-cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat1.fits',format='fits',overwrite=True)
+cat=Table([ra,dec,prob,av_r90,tot,bkg,net,e_net_up,e_net_lo,exptime,cr,e_cr_up,e_cr_lo,flux,e_flux_up,e_flux_lo],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
+#cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat1.fits',format='fits',overwrite=True)
+cat.write(wd+'sim/cdwfs_'+band+'_sim_cat1.fits',format='fits',overwrite=True)
 
 tstop= datetime.datetime.now()
 time_elapse = tstop - tstart

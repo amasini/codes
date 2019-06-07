@@ -9,14 +9,16 @@ from scipy.integrate import quad
 def integrand(x,a):
     return x**(-a+1)
 
-#from ciao_contrib.region.check_fov import FOVFiles
+def gauss(x,mu,sigma):
+	g=np.exp(-(x-mu)**2/(2*sigma**2))
+	return g
 
 #Lehmer+12 CDFS dn/ds for AGN
 def dnds(s):
     n=[]
-    #k,fb,b1,b2=562.20,8.1e-15,1.34,2.35 #full band Lehmer
+    k,fb,b1,b2=562.20,8.1e-15,1.34,2.35 #full band Lehmer
     #k,fb,b1,b2=674.64,8.1e-15,1.34,2.35 #full band Lehmer x1.2
-    k,fb,b1,b2=169.56,6.0e-15,1.49,2.48 #soft band Lehmer
+    #k,fb,b1,b2=169.56,6.0e-15,1.49,2.48 #soft band Lehmer
     #k,fb,b1,b2=573.13,6.4e-15,1.32,2.55 #hard band Lehmer
     
     for i in range(len(s)):
@@ -56,6 +58,32 @@ def dnds_g(s): # logn-logs by Georgakakis+08 for combined fields
     return n
 
 wd='/Users/alberto/Desktop/XBOOTES/'
+'''
+n2=4
+N2=[]
+for i in range(1000):
+	N2.append(np.random.poisson(n2))
+plt.figure()
+plt.hist(N2,bins=30)
+plt.show()
+sys.exit()
+'''
+
+# Define the Gamma PDF
+xvals = np.linspace(1.3, 2.3, 101)
+mu=1.8
+sigma=0.2
+p=[]
+for ii in range(len(xvals)):
+	p.append(gauss(xvals[ii],mu,sigma))
+p=np.array(p)
+new=p/np.sum(p)
+#plt.figure()
+#plt.plot(xvals,new,'k-')
+#plt.axvline(mu)
+#plt.axvline(mu-sigma)
+#plt.axvline(mu+sigma)
+#plt.show()
 
 flux=np.logspace(np.log10(5e-17),np.log10(1e-12),101) #this is the full band flux
 centers0=list((flux[i+1]+flux[i])/2 for i in range(0,len(flux)-1))
@@ -66,9 +94,9 @@ dnds_k=dnds_k(centers0) #Kenter
 dnds_g=dnds_g(centers0) #Georgakakis
 	
 #Write file with sources
-w=open(wd+'poiss_rand_todelete.reg','w')
-w2=open(wd+'poiss_rand_todelete.dat','w')
-w2.write('Hard flux\tRA\tDEC\n')
+w=open(wd+'poiss_rand_lehmer.reg','w')
+w2=open(wd+'poiss_rand_lehmer.dat','w')
+w2.write('Full flux \t RA \t DEC \t Gamma\n')
 #choose rectangular area of 4x3.5 deg2 centered on the center of the field
 (minra,maxra)=(215.82,220.1)
 (minde,maxde)=(32.2,36.2)
@@ -77,32 +105,34 @@ area=((maxra-minra)/57.29*(np.sin(maxde/57.29)-np.sin(minde/57.29)))*57.29**2
 dn,dn_k,dn_g=[],[],[]
 for i in range(len(dnds)):
 	
-    #sources per square degree in each flux bin
-    dn.append(dnds[i]*(flux[i+1]-flux[i]))
-    dn_k.append(dnds_k[i]*(flux[i+1]-flux[i]))
-    dn_g.append(dnds_g[i]*(flux[i+1]-flux[i]))
-	
-    #sources in total in each flux bin
-    n=dnds[i]*(flux[i+1]-flux[i])*area
+	#sources per square degree in each flux bin
+	dn.append(dnds[i]*(flux[i+1]-flux[i]))
+	dn_k.append(dnds_k[i]*(flux[i+1]-flux[i]))
+	dn_g.append(dnds_g[i]*(flux[i+1]-flux[i]))
 
-    #Poissonian realization of the total number of sources
-    N=np.random.poisson(n)
+	#sources in total in each flux bin
+	n=dnds[i]*(flux[i+1]-flux[i])*area
 
-    j=0
-    while j < N:
-        randdec=np.random.uniform(minde,maxde)
-        prob=np.random.uniform(0,1)
-        if np.cos(randdec*np.pi/180.) > prob:
-            j=j+1
-            randra=np.random.uniform(minra,maxra)
-            w.write('circle('+str(randra)+'d,'+str(randdec)+'d,1\")\n')
-            w2.write(str(flux[i])+'\t'+str(randra)+'\t'+str(randdec)+'\n')
+	#Poissonian realization of the total number of sources
+	N=np.random.poisson(n)
+
+	j=0
+	while j < N:
+		randdec=np.random.uniform(minde,maxde)
+		prob=np.random.uniform(0,1)
+		if np.cos(randdec*np.pi/180.) > prob:
+			j=j+1
+			randra=np.random.uniform(minra,maxra)
+			w.write('circle('+str(randra)+'d,'+str(randdec)+'d,1\")\n')
+			#w2.write(str(flux[i])+'\t'+str(randra)+'\t'+str(randdec)+'\n')
+			random_gamma=np.random.choice(xvals, p=new)
+			w2.write(str(flux[i])+' \t '+str(randra)+' \t '+str(randdec)+' \t '+str(round(random_gamma,2))+'\n')
 w.close()
 w2.close()
 
 ##########################################################################
 #recover logn-logs of input sources written in poiss_rand.dat
-full_flux=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',skip_header=1,usecols=0)
+full_flux=np.genfromtxt(wd+'poiss_rand_lehmer.dat',skip_header=1,usecols=0)
 bins00=np.logspace(np.log10(5e-17),np.log10(1e-12),101)
 centers00=list((bins00[i+1]+bins00[i])/2 for i in range(0,len(bins00)-1))
 
@@ -126,17 +156,17 @@ ncum_g=list(reversed(np.cumsum(list(reversed(dn_g)))))
 #civano_f=civano_f*cf 
 
 #take soft lehmer logn-logs from file
-(lehmer_f,lehmer_ns)=np.genfromtxt(wd+'logn-logs_lehmer_soft.dat',unpack=True)
+#(lehmer_f,lehmer_ns)=np.genfromtxt(wd+'logn-logs_lehmer_full.dat',unpack=True)
 
 #make the plots
 f,ax1=plt.subplots(1,1)
-ax1.plot(centers0,ncum,'r-',linewidth=2,label='Lehmer+12 0.5-2 keV')
+ax1.plot(centers0,ncum,'r-',linewidth=2,label='Lehmer+12 0.5-7 keV')
 ax1.plot(centers0,ncum_k,'g-',linewidth=2,label='Lehmer+12 0.5-7 X1.2 keV')
-ax1.plot(lehmer_f,lehmer_ns,'c-',linewidth=2,label='Lehmer+12 0.5-2 keV')
+#ax1.plot(lehmer_f,lehmer_ns,'c-',linewidth=2,label='Lehmer+12 0.5-2 keV')
 #ax1.plot(centers0,ncum_g,'c-',linewidth=2,label='Georgakakis+08 0.5-10 keV')
 #ax1.plot(civano_f,civano_ns,'b*',ms=15,label=r'Civano+06 2-10 keV, $\Gamma=1.8$')
 #ax1.plot(centers0,ncum_b,'b-',linewidth=2,label='Brandt+01 0.5-2 keV')
-ax1.plot(centers00,ncum_in,'r--',linewidth=2, label='In input file')
+ax1.plot(centers00,ncum_in,'k--',linewidth=2, label='In input file')
 ax1.set_xlabel('S [cgs]')
 ax1.set_ylabel(r'N(>S) [deg$^-2$]')
 ax1.set_xscale('log')

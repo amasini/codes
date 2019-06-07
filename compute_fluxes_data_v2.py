@@ -17,8 +17,8 @@ def distance(pointa, pointb):
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600.)**2 +((pointa[1]-pointb[1])*3600.)**2)
 
 wd="/Users/alberto/Desktop/XBOOTES/"
-band='hard'
-bandbkg='hard' # this is just for the soft band, use 'broad' and 'hard' for the other bands
+band=str(sys.argv[1])
+bandbkg=str(sys.argv[1]) # this is just for the soft band, use 'broad' and 'hard' for the other bands
 
 if band=='broad':
 	cf=1.411E-11 # gamma=1.4 for Chandra Cy18
@@ -29,7 +29,8 @@ elif band=='hard':
 t_in=time.time()
 
 #take catalog of detected sources - output from wavdetect
-dat=fits.open(wd+'sim/cdwfs_'+band+'_sim_src.fits')
+dat=fits.open(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sim_src.fits')
+#dat=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_src.fits')
 src_ra=dat[1].data['RA']
 src_dec=dat[1].data['DEC']
 src_sign=dat[1].data['SRC_SIGNIFICANCE']
@@ -44,6 +45,10 @@ print(len(src_ra))
 #	#w.write('circle('+str(ra[i])+'d, '+str(dec[i])+'d, 3\") #color=cyan \n')
 #w.close()
 #sys.exit()
+path=wd+'psfmaps/cdwfs_'+band+'_r90_4reb.fits'
+ima=fits.open(path)
+im=ima[0].data
+ima.close()
 
 out_r90,out_prob,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn=[],[],[],[],[],[],[],[],[],[],[],[],[],[]
 #for each detected source compute flux from data and bkg maps
@@ -92,20 +97,24 @@ for i in range(len(src_ra)):
 	totexp=np.sum(np.array(exp))
 	'''	
 	
-	path=wd+'psfmaps/cdwfs_'+band+'_r90_4reb.fits'
 	s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(src_ra[i])+' dec='+str(src_dec[i])+'',shell=True)
 	res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
 	logicalx,logicaly=res.splitlines()
 	logicalx,logicaly=float(logicalx),float(logicaly)
-	ima=fits.open(path)
-	im=ima[0].data
-	ima.close()
-	av_r90=im[int(round(logicaly)-1),int(round(logicalx)-1)])
+	av_r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
 
+	#extract exposure from vignetting-corrected expomap
+	expomap=wd+'new_mosaics_detection/cdwfs_'+band+'_expomap_4reb.fits'
+	
+	s.call('dmextract infile="'+expomap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h outfile=expo.fits opt=generic mode=h clobber=yes',shell=True)
+	s.call('dmlist "expo.fits[cols COUNTS, AREA]" data,clean | grep -v COUNTS > expo.dat',shell=True)
+	(totexpo,npix)=np.genfromtxt('expo.dat',unpack=True)
+	av_exp=16.0*totexpo/npix # npix is the number of NATIVE CHANDRA pixels, so need divide it by 16!
+	
 	#extract counts and background using r90
-	imagemap=wd+'sim/cdwfs_'+band+'_sim_poiss_4reb.fits'
-	#imagemap=wd+'sim_'+band+'/acisf'+stem+'_sim_poiss_bitpix-64.fits'
-		
+	imagemap=wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sim_poiss_4reb.fits'
+	#imagemap=wd+'new_mosaics_detection/cdwfs_'+band+'_4reb.fits'
+	
 	backmap=wd+'new_mosaics_detection/cdwfs_'+band+'_bkgmap_4reb.fits'
 	s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
 	cts=s.check_output('dmlist "counts.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
@@ -132,9 +141,9 @@ for i in range(len(src_ra)):
 	e_net_p=np.sqrt(e_cts_p**2+e_bkg_p**2) # Propagate the errors
 	e_net_n=np.sqrt(e_cts_n**2+e_bkg_n**2)
 
-	cr=net*1.1/totexp
-	e_cr_p=e_net_p*1.1/totexp # Propagate the errors
-	e_cr_n=e_net_n*1.1/totexp
+	cr=net*1.1/av_exp
+	e_cr_p=e_net_p*1.1/av_exp # Propagate the errors
+	e_cr_n=e_net_n*1.1/av_exp
 	flux=cr*cf #Gamma=1.4
 	e_flux_p=e_cr_p*cf
 	e_flux_n=e_cr_n*cf
@@ -147,7 +156,7 @@ for i in range(len(src_ra)):
 	out_net.append(net)
 	out_enetp.append(e_net_p)
 	out_enetn.append(e_net_n)
-	out_exp.append(totexp)
+	out_exp.append(av_exp)
 	out_cr.append(cr)
 	out_ecrp.append(e_cr_p)
 	out_ecrn.append(e_cr_n)
@@ -156,8 +165,9 @@ for i in range(len(src_ra)):
 	out_efluxn.append(e_flux_n)
 
 #write catalog
-cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR--','FLUX','E_FLUX_+','E_FLUX_-'))
-cat.write(wd+'sim/cdwfs_'+band+'_sim_cat0.fits',format='fits',overwrite=True)
+cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
+cat.write(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat0.fits',format='fits',overwrite=True)
+#cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0.fits',format='fits',overwrite=True)
 
 t_out=time.time()
 print((t_out-t_in)/60.,'Minutes for the loop')

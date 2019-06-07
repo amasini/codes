@@ -8,17 +8,19 @@ from astropy.io import fits
 import sys
 from scipy.special import gammainc
 from matplotlib.colors import LogNorm
-from ciao_contrib.region.check_fov import FOVFiles
+#from ciao_contrib.region.check_fov import FOVFiles
 import time
 from scipy.stats import poisson
+from scipy import interpolate
+from collections import OrderedDict
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
 #################################
-what='xbootes'
+what='cdwfs'
 band='broad'
 gamma='1.4'
-cy='Cy3' # XBOOTES was done in Cy3, CDWFS in Cy18
+#cy='Cy3' # XBOOTES was done in Cy3, CDWFS in Cy18/Cymix
 r50=True
 '''
 ok=False
@@ -51,32 +53,61 @@ scale=(0.492/3600.)*rebin_factor #pixel size in deg
 arcsec2pix=scale*3600
 print(arcsec2pix)
 #################################
+'''
+x=np.arange(0.,11.)
+y=poisson.sf(x,2.1)
+a,b,c=np.polyfit(x, np.log10(y), 2)
+xinterp = np.linspace(0,10,100)
+log_yfit = a*xinterp**2+b*xinterp + c
+yinterp=10**log_yfit
+diff=abs(yinterp-6e-5)
+myx=xinterp[diff==min(diff)]
+print(myx)
+plt.figure()
+plt.plot(x,y,'ro')
+plt.plot(xinterp,yinterp,'k.')
+plt.axhline(y=6e-5)
+plt.yscale('log')
+plt.show()
 
+sys.exit()
+'''
+'''
+print('Doing',what,'in the',band,'band, with Gamma',gamma)
 #take expo map (exposure has average exposure in 4x4 pixels in s)
-#expmap=fits.open(wd+'new_mosaics_detection/'+what+'_'+band+'_expomap_4reb.fits')
-#exp=expmap[0].data
-expmap=fits.open(wd+'data/3596/repro_new_asol/out/acisf03596_broad_expomap_4reb.fits')
-exp=expmap[0].data/16.0
+expmap=fits.open(wd+'new_mosaics_detection/'+what+'_'+band+'_expomap_4reb.fits')
+exp=expmap[0].data
+#expmap=fits.open(wd+'data/3596/repro_new_asol/out/acisf03596_broad_expomap_4reb.fits')
+#exp=expmap[0].data/16.0
 exp[np.isnan(exp)]=0.0 #put nans to 0
 
 ecf=np.zeros_like(exp,dtype=float)
 ecf[exp==0.0]=0.0
-ecf[(exp<=12000.) & (exp>0.)]=9.81E-12
-ecf[exp>12000.]=1.329E-11
-
+if band == 'broad':
+	ecf[(exp<=12000.) & (exp>0.)]= 9.325E-12 #Cy3 Gamma=1.4
+	ecf[exp>12000.]=1.411E-11 #Cy18 Gamma=1.4
+	pthresh=8e-5
+elif band == 'soft':
+	ecf[(exp<=12000.) & (exp>0.)]=4.481E-12 #Cy3 Gamma=1.4
+	ecf[exp>12000.]=8.707E-12 #Cy18 Gamma=1.4
+	pthresh=6e-4
+else:
+	ecf[(exp<=12000.) & (exp>0.)]=1.973E-11 #Cy3 Gamma=1.4
+	ecf[exp>12000.]=2.022E-11 #Cy18 Gamma=1.4
+	pthresh=4e-5
 #plt.figure()
 #plt.imshow(ecf,origin='lower')
 #plt.show()
 #sys.exit()
 
 #take psfmap (in arcsec)
-#psfmap=fits.open(wd+'psfmaps/'+what+'_'+band+'_r90sq_4reb.fits')
-psfmap=fits.open(wd+'psfmaps/03596_r90sq_4reb.fits')
+psfmap=fits.open(wd+'psfmaps/'+what+'_'+band+'_r90sq_4reb.fits')
+#psfmap=fits.open(wd+'psfmaps/03596_r90sq_4reb.fits')
 psf=psfmap[0].data
 
 #take bkg map (bkgmap has SUMMED bkg in 4x4 pixels, like data)
-#bkgmap=fits.open(wd+'new_mosaics_detection/'+what+'_'+band+'_bkgmap_4reb.fits')
-bkgmap=fits.open(wd+'data/3596/repro_new_asol/out/acisf03596_broad_bkgmap_4reb.fits')
+bkgmap=fits.open(wd+'new_mosaics_detection/'+what+'_'+band+'_bkgmap_4reb.fits')
+#bkgmap=fits.open(wd+'data/3596/repro_new_asol/out/acisf03596_broad_bkgmap_4reb.fits')
 bkg=bkgmap[0].data
 backheader=bkgmap[0].header
 bkg[np.isnan(bkg)]=0.0 #put nans to 0
@@ -91,48 +122,54 @@ elif r50 == False:
 pixarea=arcsec2pix*arcsec2pix
 bkg2=bkg*(sourcearea/pixarea)
 
-#bkg3=bkg2[bkg2>0]
-#bins=np.logspace(np.log10(min(bkg3)),np.log10(max(bkg3)),100)
-#plt.figure()
-#plt.hist(bkg3,bins=bins)
-#plt.xscale('log')
-#plt.show()
+#print(np.max(bkg2))
+#sys.exit()
 
-#plim = poisson.isf(6e-5,bkg2) # this gives minimum counts to have prob equal to 6e-5
-nS=1.35
-plim=(nS**2+np.sqrt(nS**4+4.*nS**2*bkg2))/2. #counts needed to have a nS sigma detection
-plim2=plim[plim>0]
-plt.figure()
-plt.hist(plim2,bins=30)
-plt.yscale('log')
-plt.show()
+maxval=20
+x=np.arange(0.,maxval)
+xinterp = np.linspace(0,maxval-1,100)
 
-#pcts = poisson.isf(0.5,plim)
-#poiss=np.random.poisson(plim-bkg2)
-#pcts = poisson.isf(0.5,poiss)  # this gives counts that 50% of times make my source detected -- CHECK THIS
+pcts=np.zeros_like(bkg2,dtype=float)
+for i in range(bkg2.shape[0]):
+	for j in range(bkg2.shape[1]):
+		if bkg2[i][j] != 0.0:
+			#maxval=float(int(bkg2[i][j])+2)
+			#x=np.arange(0.,maxval)
+			#xinterp = np.linspace(0,maxval-1,100)
+			y=poisson.sf(x,bkg2[i][j])
+			a,b,c=np.polyfit(x, np.log10(y), 2)
 
-#plim2=plim[plim>0]
-#pcts2=pcts[pcts>0]
-#plt.figure()
-#plt.plot(plim,pcts,'b.')
-#plt.show()
+			log_yfit = a*xinterp**2+b*xinterp + c
+			yinterp=10**log_yfit
+			
+			#plt.figure()
+			#plt.plot(x,y,'ro')
+			#plt.plot(xinterp,yinterp,'k.')
+			#plt.axhline(y=6e-5)
+			#plt.yscale('log')
+			#plt.show()
+			
+			diff=abs(yinterp-pthresh)
+			#print(xinterp[diff==min(diff)])
+			#sys.exit()
+			pcts[i][j]=xinterp[diff==min(diff)]-bkg2[i][j]
+		else:
+			pcts[i][j]=0.0
 
-
-
-flim=plim/exp*ecf
+flim=pcts/exp*ecf
 #flim=plim/4500.*ecf
-plt.figure()
-plt.imshow(flim)
-plt.show()
+#plt.figure()
+#plt.imshow(flim)
+#plt.show()
 flim[exp<1.]=0. #put fluxes where expo < 1 s to zero
 
-#flim2=plim2/exp*ecf
-#flim2[exp<1.]=0. #put fluxes where expo < 1 s to zero
-'''
 #writes output sensitivity map
 hdu1 = fits.PrimaryHDU(flim,header=backheader)
-hdu1.writeto(wd+'flim_'+what+'_'+cy+'.fits',overwrite=True)
+hdu1.writeto(wd+'new_mosaics_detection/'+what+'_'+band+'_sensmap_4reb.fits',overwrite=True)
 
+sys.exit()
+'''
+'''
 flim=flim[flim>0]
 bins=np.logspace(np.log10(1e-16),np.log10(1e-13),100)
 
@@ -189,107 +226,119 @@ hdu1.writeto(wd+what+'_'+band+'_sens_'+gamma+cy+'.fits',overwrite=True)
 
 sys.exit()
 '''
-#sensb=fits.open(wd+'cdwfs_broad_sens_1.4Cy18.fits')
-#sens2b=sensb[0].data
-#sens2b=sens2b[sens2b>0]
 
-#binsb=np.logspace(np.log10(min(sens2b)),np.log10(1e-13),100)
+#sensb=fits.open(wd+'new_mosaics_detection/sens_xbootes_soft_Cy3.fits')
+#sens2b=sensb[0].data
+#sens2b=sens2b*16.0
+
+#binsb=np.logspace(np.log10(1e-16),np.log10(1e-13),100)
 #ab,bb=np.histogram(sens2b,bins=binsb)
 #areab=ab*scale**2
 #centersb=list((binsb[i+1]+binsb[i])/2. for i in range(len(binsb)-1))
 #cumb=np.cumsum(areab)
 
-#sensc=fits.open(wd+'xbootes_broad_sens_1.4Cy3.fits')
-#sens2c=sensc[0].data
-#sens2c=sens2c[sens2c>0]
+'''#####
+#take expo map (exposure has average exposure in 4x4 pixels in s)
+expmap=fits.open(wd+'new_mosaics_detection/cdwfs_broad_expomap_4reb.fits')
+exp=expmap[0].data
+exp[np.isnan(exp)]=0.0 #put nans to 0
 
-#binsc=np.logspace(np.log10(min(sens2c)),np.log10(1e-13),100)
-#ac,bc=np.histogram(sens2c,bins=binsc)
-#areac=ac*scale**2
-#centersc=list((binsc[i+1]+binsc[i])/2. for i in range(len(binsc)-1))
-#cumc=np.cumsum(areac)
+ecf=np.zeros_like(exp,dtype=float)
+ecf[exp==0.0]=0.0
+ecf[(exp<=12000.) & (exp>0.)]=9.81E-12
+ecf[exp>12000.]=1.329E-11
 
-#sensd=fits.open(wd+'xbootes_broad_sens_1.4Cy18.fits')
-#sens2d=sensd[0].data
-#sens2d=sens2d[sens2d>0]
+cr=sens2b/ecf # this is the countrate map
 
-#binsd=np.logspace(np.log10(min(sens2d)),np.log10(1e-13),100)
-#ad,bd=np.histogram(sens2d,bins=binsd)
-#aread=ad*scale**2
-#centersd=list((binsd[i+1]+binsd[i])/2. for i in range(len(binsd)-1))
-#cumd=np.cumsum(aread)
+ecf[exp>12000.]=9.81E-12
+sensd=cr*ecf
+sens2d=sensd[sensd>0]
 
-#cumb=np.array(cumb)
-#centersb=np.array(centersb)
-#cumc=np.array(cumc)
-#centersc=np.array(centersc)
+binsd=np.logspace(np.log10(min(sens2d)),np.log10(1e-13),100)
+ad,bd=np.histogram(sens2d,bins=binsd)
+aread=ad*scale**2
+centersd=list((binsd[i+1]+binsd[i])/2. for i in range(len(binsd)-1))
+cumd=np.cumsum(aread)
+######'''
+
+
+
+f,ax=plt.subplots(3,figsize=[6,6],sharex=True)
+
+for field in ['xbootes','cdwfs']:
+	i=0
+	for band in ['broad','soft','hard']:
+		
+		print(field,band)
+		
+		sensc=fits.open(wd+'new_mosaics_detection/'+field+'_'+band+'_sensmap_4reb.fits')
+		sens2c=sensc[0].data
+		sens2c=sens2c[sens2c>0]
+		#if band == 'soft':
+		#	sens2c=sens2c*16.0
+		sensc.close()
+		binsc=np.logspace(np.log10(min(sens2c)),np.log10(1e-13),100)
+		ac,bc=np.histogram(sens2c,bins=binsc)
+		areac=ac*scale**2
+		centersc=list((binsc[i+1]+binsc[i])/2. for i in range(len(binsc)-1))
+		cumc=np.cumsum(areac)
+	
+		if field == 'xbootes':
+			color ='k'
+		else:
+			color ='b'
+			
+		if band == 'broad':
+			style='-'
+		elif band == 'soft':
+			style='--'
+		else:
+			style='dotted'
+	
+		ax[i].plot(centersc,cumc,color=color,linestyle=style,label=field)
+		ax[i].set_ylabel(r'Area [deg$^2$]',fontsize=13)
+		ax[i].set_xscale('log')
+		ax[i].axis([1e-16,5e-14,0,11])
+		ax[i].tick_params(direction='inout',which='major',top=True,right=True,length=8, labelsize=14)
+		ax[i].tick_params(direction='inout',which='minor',top=True,right=True,length=4, labelsize=14)
+
+		i=i+1
 
 kenterflux,kentersky=np.genfromtxt(wd+'kenter05_sens_05-7keV.dat',unpack=True)
+ax[0].plot(kenterflux,kentersky,'k.-',label='Kenter')
+#if band == 'broad':
+#	ax.set_xlabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+#elif band == 'soft':
+#	ax.set_xlabel(r'0.5-2 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+#else:
+#	ax.set_xlabel(r'2-7 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+ax[2].set_xlabel(r'Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+handles, labels = plt.gca().get_legend_handles_labels()
+by_label = OrderedDict(zip(labels, handles))
+plt.legend(by_label.values(), by_label.keys())
+f.subplots_adjust(hspace=0)
+#plt.tight_layout()
+plt.show()
+
+
+'''
+sensc=fits.open(wd+'new_mosaics_detection/sens_xbootes_broad_Cy3.fits')
+sens2c=sensc[0].data
+sens2c=sens2c[sens2c>0]
+
+binsc=np.logspace(np.log10(min(sens2c)),np.log10(1e-13),100)
+ac,bc=np.histogram(sens2c,bins=binsc)
+areac=ac*scale**2
+centersc=list((binsc[i+1]+binsc[i])/2. for i in range(len(binsc)-1))
+cumc=np.cumsum(areac)
+'''
+
 #simflux,simsky=np.genfromtxt(wd+'skycov.dat',unpack=True)
 
-#hdu1 = fits.PrimaryHDU(flim,header=backheader)
-#hdu1.writeto(wd+'flim_'+cy+'.fits',overwrite=True)
-
-#file=fits.open(wd+'flim_Cy3.fits')
-#flim=file[0].data
-
-flim=flim[(flim>1e-16) & (np.isfinite(flim))]
-bins=np.logspace(np.log10(1e-16),np.log10(1e-13),100)
-(n,binedges)=np.histogram(flim,bins=bins)
-binc=list((binedges[i]+binedges[i+1])/2. for i in range(len(binedges)-1))
-nsum=np.cumsum(n)/float(np.max(np.sum(n)))*9.3
-
-#flim2=flim2[(flim2>1e-16) & (np.isfinite(flim2))]
-#bins2=np.logspace(np.log10(1e-16),np.log10(1e-13),100)
-#(n2,binedges2)=np.histogram(flim2,bins=bins2)
-#binc2=list((binedges2[i]+binedges2[i+1])/2. for i in range(len(binedges2)-1))
-#nsum2=np.cumsum(n2)/float(np.max(np.sum(n2)))*9.3
-
-#file2=fits.open(wd+'flim_Cy18.fits')
-#flim2=file2[0].data
-
-#flim2=flim2[(flim2>1e-16) & (np.isfinite(flim2))]
-
-#(n2,binedges2)=np.histogram(flim2,bins=bins)
-#binc2=list((binedges2[i]+binedges2[i+1])/2. for i in range(len(binedges2)-1))
-#nsum2=np.cumsum(n2)/float(np.max(np.sum(n2)))*9.3
-
-#file3=fits.open(wd+'flim_cdwfs_Cy18.fits')
-#flim3=file3[0].data
-
-#flim3=flim3[(flim3>1e-16) & (np.isfinite(flim3))]
-
-#(n3,binedges3)=np.histogram(flim3,bins=bins)
-#binc3=list((binedges3[i]+binedges3[i+1])/2. for i in range(len(binedges3)-1))
-#nsum3=np.cumsum(n3)/float(np.max(np.sum(n3)))*9.3
-
-#pcts = poisson.isf(0.5,2)-bkg2
-
-#flim4=pcts/exp*ecf
-#flim=pcts/4500.*ecf
-#flim4[exp<1000.]=0. #put fluxes where expo < 1 to zero
-#flim4=flim4[(flim4>1e-16) & (np.isfinite(flim4))]
-#(n4,binedges4)=np.histogram(flim4,bins=bins)
-#binc4=list((binedges4[i]+binedges4[i+1])/2. for i in range(len(binedges4)-1))
-#nsum4=np.cumsum(n4)/float(np.max(np.sum(n4)))*9.3
-
-f,ax=plt.subplots(1)
 #ax.plot(centersb,cumb,'b-',label='CDWFS')
-#ax.plot(centersc,cumc,'k--',label='Cy3 XBootes')
-#ax.plot(centersd,cumd,'r--',label='Cy18 XBootes')
-ax.plot(kenterflux,kentersky,'k.-',label='Kenter')
-ax.plot(binc,nsum,'g--',label='My XB')
-#ax.plot(binc2,nsum2,'r--',label='XB Cy18')
-#ax.plot(binc3,nsum3,'b--',label='CDWFS Cy18')
-#ax.plot(binc4,nsum4,'y-.',label='CDWFS 6cts')
+
+#ax.plot(centersd,cumd,'r--',label='Cy3 CDWFS')
+
 #ax.plot(simflux,simsky,'g.-',label='Sim')
-ax.set_xlabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-ax.set_ylabel(r'Area [deg$^2$]',fontsize=13)
-ax.set_xscale('log')
-#ax.set_yscale('log')
-ax.axis([5e-16,1e-13,0,11])
-ax.legend()
-ax.tick_params(labelsize=14)
-plt.tight_layout()
-plt.show()
+
 #plt.savefig(wd+'cdwfs_full_sensitivity.pdf',format='pdf',dpi=1000)

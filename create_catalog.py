@@ -6,6 +6,8 @@ import sys
 import matplotlib.pyplot as plt
 import subprocess as s
 import os
+import scipy
+import scipy.stats.distributions
 
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180*3.141592)
@@ -66,7 +68,10 @@ e_fluxh_up=cat[1].data['E_FLUX_H_+']
 e_fluxh_lo=cat[1].data['E_FLUX_H_-']
 #cutf,cuts,cuth=1.4e-2,1e-2,3.5e-3 # These are the probability cuts in F,S,H bands at 97% rel -> 9240 srcs
 #cutf,cuts,cuth=2e-4,2e-4,1e-4 # These are the probability cuts in F,S,H bands at 99% rel -> 7666 srcs
-cutf,cuts,cuth=6e-5,1.4e-4,6e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 6963 srcs
+#cutf,cuts,cuth=6e-5,1.4e-4,6e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7129 srcs
+
+cutf,cuts,cuth=7e-5,6e-4,4e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7338 srcs
+#cutf,cuts,cuth=1e-5,1e-5,1e-5 # These are the probability cuts in F,S,H bands at 99.5% rel -> 6295 srcs
 
 probf[raf==0.0]=9999
 probs[ras==0.0]=9999
@@ -203,7 +208,7 @@ for j in range(len(probf)):
 				ima=fits.open(path)
 				im=ima[0].data
 				ima.close()
-				r90=im[int(round(logicaly)-1),int(round(logicalx)-1)])
+				r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			r90f[j]=r90
 			s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(ra_u[-1])+'d,'+str(dec_u[-1])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(ra_u[-1])+'d,'+str(dec_u[-1])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
@@ -216,11 +221,11 @@ for j in range(len(probf)):
 			s.call('dmextract infile="'+expomap+'[bin pos=circle('+str(ra_u[-1])+'d,'+str(dec_u[-1])+'d,'+str(r90*0.000277778)+'d)]" mode=h outfile=expo.fits opt=generic mode=h clobber=yes',shell=True)
 			s.call('dmlist "expo.fits[cols COUNTS, AREA]" data,clean | grep -v COUNTS > expo.dat',shell=True)
 			(totexpo,npix)=np.genfromtxt('expo.dat',unpack=True)
-			av_exp=totexpo/npix
+			av_exp=16.0*totexpo/npix # npix is the number of NATIVE CHANDRA pixels, so need divide it by 16!
 			expf[j]=av_exp
 			
-			netf=totf[j]-bkgf[j]
-			netf2=netf+3*np.sqrt(netf+1)+(11./3.) #3sigma upper limit on net counts
+			netff=totf[j]-bkgf[j]
+			netf2=netff+3*np.sqrt(netff+1)+(11./3.) #3sigma upper limit on net counts
 			bkgf2=bkgf[j]+3*np.sqrt(bkgf[j]+1)+(11./3.) #3sigma upper limit on background counts
 			
 			netf[j]=np.sqrt(netf2**2+bkgf2**2) #propagate to get final 3sigma (hope it's correct) - check with Ryan
@@ -250,7 +255,7 @@ for j in range(len(probf)):
 				ima=fits.open(path)
 				im=ima[0].data
 				ima.close()
-				r90=im[int(round(logicaly)-1),int(round(logicalx)-1)])
+				r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			r90s[j]=r90
 			s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(ra_u[-1])+'d,'+str(dec_u[-1])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(ra_u[-1])+'d,'+str(dec_u[-1])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
@@ -266,8 +271,8 @@ for j in range(len(probf)):
 			av_exp=totexpo/npix
 			exps[j]=av_exp
 			
-			nets=tots[j]-bkgs[j]
-			nets2=nets+3*np.sqrt(nets+1)+(11./3.) #3sigma upper limit on net counts
+			netss=tots[j]-bkgs[j]
+			nets2=netss+3*np.sqrt(netss+1)+(11./3.) #3sigma upper limit on net counts
 			bkgs2=bkgs[j]+3*np.sqrt(bkgs[j]+1)+(11./3.) #3sigma upper limit on background counts
 			
 			nets[j]=np.sqrt(nets2**2+bkgs2**2) #propagate to get final 3sigma (hope it's correct) - check with Ryan
@@ -294,7 +299,7 @@ for j in range(len(probf)):
 			ima=fits.open(path)
 			im=ima[0].data
 			ima.close()
-			r90=im[int(round(logicaly)-1),int(round(logicalx)-1)])
+			r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			r90h[j]=r90
 			s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(ra_u[-1])+'d,'+str(dec_u[-1])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(ra_u[-1])+'d,'+str(dec_u[-1])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
@@ -310,8 +315,8 @@ for j in range(len(probf)):
 			av_exp=totexpo/npix
 			exph[j]=av_exp
 			
-			neth=toth[j]-bkgh[j]
-			neth2=neth+3*np.sqrt(neth+1)+(11./3.) #3sigma upper limit on net counts
+			nethh=toth[j]-bkgh[j]
+			neth2=nethh+3*np.sqrt(nethh+1)+(11./3.) #3sigma upper limit on net counts
 			bkgh2=bkgh[j]+3*np.sqrt(bkgh[j]+1)+(11./3.) #3sigma upper limit on background counts
 			
 			neth[j]=np.sqrt(neth2**2+bkgh2**2) #propagate to get final 3sigma (hope it's correct) - check with Ryan

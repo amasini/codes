@@ -34,7 +34,7 @@ wd='/Users/alberto/Desktop/XBOOTES/'
 
 #################
 # take input sources in full band
-(f_s,ra_s,dec_s,gamma_s)=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',skip_header=1,unpack=True,usecols=[0,1,2,3])
+(f_s,ra_s,dec_s,gamma_s)=np.genfromtxt(wd+'poiss_rand_lehmer.dat',skip_header=1,unpack=True,usecols=[0,1,2,3])
 #################
 
 #################
@@ -190,7 +190,7 @@ for j in range(len(obsid0)):
 				(totexpo,npix)=np.genfromtxt('expo.dat',unpack=True)
 				expo=totexpo/npix
 				
-				#compute total counts and rescale psf; PIMMS predicts 5.438E+10 cps with CHANDRA ACIS-I (0.5-7 keV, Gamma=1.8; would be 5.392E+10 w/ Gamma=1.4)
+				#compute total counts and rescale psf
 				counts=sources_flux[i]*expo*cf*flux_ratio
 				newpsf=psf*(counts/np.sum(psf))
 				
@@ -241,15 +241,15 @@ for j in range(len(obsid0)):
 			
 			simulation[simulation<0]=0      
 			hdu0 = fits.PrimaryHDU(simulation,header=backheader)                
-			hdu0.writeto(wd+'/sim_all/acisf'+stem+'_'+band+'_sim.fits',overwrite=True) 
+			hdu0.writeto(wd+'/sim_all_new/acisf'+stem+'_'+band+'_sim.fits',overwrite=True) 
 	
 			#old method
 			poiss_sim=np.random.poisson(simulation)
-			hdu1 = fits.PrimaryHDU(poiss_sim,header=backheader)
-			hdu1.writeto(wd+'/sim_all/acisf'+stem+'_'+band+'_sim_poiss.fits',overwrite=True)
+			#hdu1 = fits.PrimaryHDU(poiss_sim,header=backheader)
+			#hdu1.writeto(wd+'/sim_all/acisf'+stem+'_'+band+'_sim_poiss.fits',overwrite=True)
 			poiss_sim2=poiss_sim.astype(float) #this prevents the simulation to have bitpix=64 causing issues with dmextract
 			hdu2 = fits.PrimaryHDU(poiss_sim2,header=backheader)
-			hdu2.writeto(wd+'/sim_all/acisf'+stem+'_'+band+'_sim_poiss_bitpix-64.fits',overwrite=True)
+			hdu2.writeto(wd+'/sim_all_new/acisf'+stem+'_'+band+'_sim_poiss.fits',overwrite=True)
 	    	            
 elapsed_time=time.time()-start_time
 print(float(elapsed_time)/3600.,'hours for the whole simulation.')
