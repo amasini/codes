@@ -19,9 +19,25 @@ def distance(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
+simfolder = 'sim_indep/'
+
 band=str(sys.argv[1])
 
 ###########################
+
+# define some gammas and list the conversion factors from PIMMS, plus the ratio to the full band flux
+gamma=np.arange(0.9,2.4,0.1)
+
+fluxrat_s=[0.2050,0.2267,0.2500,0.2749,0.3013,0.3292,0.3584,0.3888,0.4201,0.4521,0.4846,0.5173,0.5499,0.5822,0.6138]
+
+# now interpolate these binned functions to get more finely sampled curves
+xvals = np.arange(0.9, 2.31, 0.01)
+
+for i in range(len(xvals)):
+	xvals[i]=round(xvals[i],2)
+fluxinterp_s = np.interp(xvals, gamma, fluxrat_s)
+
+'''
 # define some gammas and list the conversion factors from PIMMS, plus the ratio to the full band flux
 gamma=np.arange(1.3,2.4,0.1)
 #cf_f=[6.243,6.355,6.456,6.544,6.617,6.674,6.712,6.731,6.731,6.709,6.668]
@@ -41,25 +57,28 @@ xvals = np.linspace(1.3, 2.3, 101)
 for i in range(len(xvals)):
 	xvals[i]=round(xvals[i],2)
 fluxinterp_s = np.interp(xvals, gamma, fluxrat_s)
+'''
 #############################
 
-'''
+
 #take list of sources in input to simulation
-(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma)=np.genfromtxt(wd+'poiss_rand_lehmer.dat',unpack=True,skip_header=1)
+(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'.dat',unpack=True,skip_header=1)
 ### NEED TO FILTER THESE SOURCES WITH THE TOTAL FOV OF THE CDWFS, SOME OF THEM ARE OUTSIDE 
 ### AND CANNOT BE MATCHED BY DEFINITION
-w=open(wd+'poiss_rand_lehmer_filtered.dat','w')
+w=open(wd+'poiss_rand_'+band+'_filtered.dat','w')
 w.write('Flux \t RA \t DEC \t Gamma \n')
 my_obs = FOVFiles('@'+wd+'fov.lis')
 for i in range(len(ra_cdwfs)):
 	myobs = my_obs.inside(ra_cdwfs[i], dec_cdwfs[i])
 	if len(myobs) > 0:
-		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \t '+str(gamma[i])+' \n')
+		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \n')
 w.close()
 #print(len(ra_cdwfs))
-'''
+
 #take filtered list of sources in input to simulation
-(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmer_filtered.dat',unpack=True,skip_header=1)
+(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered.dat',unpack=True,skip_header=1)
+'''
+(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered.dat',unpack=True,skip_header=1)
 for m in range(len(gamma_cdwfs)):
 	if band=='soft':
 		flux_ratio=fluxinterp_s[xvals==gamma_cdwfs[m]]
@@ -67,6 +86,7 @@ for m in range(len(gamma_cdwfs)):
 	elif band=='hard':
 		flux_ratio=1-fluxinterp_s[xvals==gamma_cdwfs[m]]
 		flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
+'''
 
 # Sort them to start from the bright ones
 ra_cdwfs=ra_cdwfs[::-1]
@@ -74,7 +94,7 @@ dec_cdwfs=dec_cdwfs[::-1]
 flux_cdwfs=flux_cdwfs[::-1]
 
 #take catalog of detected sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap) cleaned by multiple sources (cat1)
-cat1=fits.open(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat1.fits')
+cat1=fits.open(wd+simfolder+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat1.fits')
 
 #Loop on the cuts
 #cut detected sample at a given probability threshold 
@@ -247,7 +267,7 @@ for k in range(len(spurious)):
 	sp_frac.append(float(spurious[k])/float(detected[k])*100.)
 
 # Write out sp fraction as a function of probability cut
-w=open(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sp-frac.dat','w')
+w=open(wd+simfolder+str(sys.argv[2])+'cdwfs_'+band+'_sp-frac.dat','w')
 for i in range(len(cut)):
 	w.write(str(cut[i])+' \t '+str(sp_frac[i])+'\n')
 w.close()

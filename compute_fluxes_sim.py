@@ -1,197 +1,73 @@
-# this code should take the list of detected sources (for simulation, should also match to 
-# input sources in order to have input flux), and for each source: 
-# define in which obsids it is contained; for each obsid, define theta to estimate r90;
-# extract total and bkg counts from circular aperture of radius r90; sum up the total
-# net counts and exposure time; compute flux.
+# this code extracts counts, exposure, fluxes for detected real sources, using r90.
+# r90 is computed with the weighted average of the r90s of all the obsids in which the
+# source is contained - version 2 with fewer calls to dmextract and dmlist
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
-from ciao_contrib.region.check_fov import FOVFiles
+import scipy
+import scipy.stats.distributions
 import subprocess as s
 import sys
 import time
+from ciao_contrib.region.check_fov import FOVFiles
 
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180.*np.pi)
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600.)**2 +((pointa[1]-pointb[1])*3600.)**2)
 
-wd='/Users/alberto/Desktop/XBOOTES/'
+wd="/Users/alberto/Desktop/XBOOTES/"
 
-t0 = time.time()
-t1 = t0 + 60*58
-print('The loop should end around')
-print time.strftime("%I %M %p",time.localtime(t1))
+simfolder = 'sim_indep/'
+
+band=str(sys.argv[1])
+bandbkg=str(sys.argv[1]) # this is just for the soft band, use 'broad' and 'hard' for the other bands
 
 t_in=time.time()
+
+#take catalog of detected sources - output from wavdetect
+dat=fits.open(wd+simfolder+str(sys.argv[2])+'cdwfs_'+band+'_sim_src_exp-psf.fits')
+src_ra=dat[1].data['RA']
+src_dec=dat[1].data['DEC']
+
 '''
-obs=np.genfromtxt(wd+'data_counts.dat',usecols=1,dtype='str')
-w=open(wd+'fov.lis','w')
-for j in range(len(obs)):
-	w.write(wd+'data/'+obs[j]+'/repro_new_asol/fov_acisI.fits\n')
-w.close()
-
-my_obs = FOVFiles('@'+wd+'fov.lis')
-myobs = my_obs.inside(217.9, 33.9)
-for j in range(len(myobs)):
-	obs=myobs[j][36:-30]
-	if len(obs) == 4:
-		stem='0'+obs
-	elif len(obs) == 3:
-		stem='00'+obs
-	elif len(obs) == 5:
-		stem=obs
-	#get theta to compute r90
-	path=myobs[j][:-14]+'out/acisf'+stem+'_broad_expomap.fits'
-	print(path)
-sys.exit()
+# Take list of input source of simulation
+(inp_fl,src_ra,src_dec)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered_new.dat',unpack=True,skip_header=1)
+if band != 'soft':
+	src_ra=src_ra[inp_fl>3e-16]
+	src_dec=src_dec[inp_fl>3e-16]
+else:
+	src_ra=src_ra[inp_fl>9e-17]
+	src_dec=src_dec[inp_fl>9e-17]
 '''
-#simulations: take simulated sources positions and fluxes to match with detected sim srcs
-'''
-maxdist=3.0
+print(len(src_ra))
 
-#take input simulated sources
-(sim_in_ra,sim_in_dec,sim_in_flux)=np.genfromtxt(wd+'poiss_rand_lehmerx20.dat',unpack=True,usecols=[1,2,0],skip_header=1)
-
-#take detected simulated sources
-dat=fits.open(wd+'simul_broad_cat0.fits')
-sim_ra=dat[1].data['RA']
-sim_dec=dat[1].data['DEC']
-sim_sign=dat[1].data['DETML']
-sim_tot=dat[1].data['TOT']
-sim_bkg=dat[1].data['BKG']
-sim_cts=dat[1].data['NET']
-sim_exp=dat[1].data['EXP']
-sim_cr=dat[1].data['CR']
-sim_flux=dat[1].data['FLUX']
-
-out_ra,out_dec,out_inpflux,unmatched_cts,out_multi,out_dist=[],[],[],[],[],[]
-multi=0
-t_in=time.time()
-#w=open(wd+'matched_sim_full.dat','w')
-##w.write('RA \t DEC \t sign \t F_in\n')
-for i in range(len(sim_ra)):
-	multiple=0
-	src_det=[sim_ra[i],sim_dec[i]]
-	for j in range(len(sim_in_ra)):
-		src_inp=[sim_in_ra[j],sim_in_dec[j]]
-		dist=distance(src_det,src_inp)
-		if (dist < maxdist and multiple==0): # found the first match!
-			counter_ra,counter_dec,counter_inpflux,counter_d=[],[],[],[]
-			# detected source data
-			sim_out_ra=sim_ra[i]
-			sim_out_dec=sim_dec[i]
-			src_sign=sim_sign[i]
-			
-			# counterpart (input of simulation) data
-			counter_ra.append(sim_in_ra[j])
-			counter_dec.append(sim_in_dec[j])
-			counter_inpflux.append(sim_in_flux[j])
-			counter_d.append(dist)
-			
-			multiple=multiple+1
-			
-		elif (dist < maxdist and multiple!=0):
-			multiple=multiple+1
-			print('Found the '+str(multiple)+'nd/rd/th source...')
-			#########################################
-			counter_ra.append(sim_in_ra[j])
-			counter_dec.append(sim_in_dec[j])
-			counter_inpflux.append(sim_in_flux[j])
-			counter_d.append(dist)
-			
-	if multiple !=0:
-		multi=multi+1
-		# choose the brightest among the counterparts
-		if multiple==1: #if there's just one counterpart, pick that
-			out_multi.append(1)
-			out_ra.append(counter_ra[0])
-			out_dec.append(counter_dec[0])
-			out_inpflux.append(counter_inpflux[0])
-			out_dist.append(counter_d[0])
-		else: #we have 2 or more counterparts, pick the brightest
-			list_to_sort=[]
-			for k in range(len(counter_ra)):
-				list_to_sort.append((counter_ra[k],counter_dec[k],counter_inpflux[k],counter_d[k]))
-			#sort with criterion of maximum flux; brightest count is the first element
-			newlist=sorted(list_to_sort, key=lambda cr: cr[2],reverse=True)
-			out_multi.append(1)
-			out_ra.append(newlist[0][0])
-			out_dec.append(newlist[0][1])
-			out_inpflux.append(newlist[0][2])
-			out_dist.append(newlist[0][3])
-	else:
-		out_multi.append(0)
-		out_ra.append(-99)
-		out_dec.append(-99)
-		out_inpflux.append(-99)
-		out_dist.append(-99)
-		unmatched_cts.append(sim_cts[i])
+#w=open(wd+'cdwfs_broad_output_wavdetect.reg','w')
+#for i in range(len(ra)):
+#	w.write('circle('+str(src_ra[i])+'d, '+str(src_dec[i])+'d, 5\") #color=yellow \n')
+#	#w.write('circle('+str(ra[i])+'d, '+str(dec[i])+'d, 3\") #color=cyan \n')
 #w.close()
+#sys.exit()
+path=wd+'new_mosaics_detection/cdwfs_'+band+'_r90_4reb.fits'
+ima=fits.open(path)
+im=ima[0].data
+ima.close()
 
-out_ra=np.array(out_ra)
-out_dec=np.array(out_dec)
-out_inpflux=np.array(out_inpflux)
-out_dist=np.array(out_dist)
+path=wd+'new_mosaics_detection/cdwfs_'+band+'_ecfmap_4reb.fits'
+ima=fits.open(path)
+im2=ima[0].data
+ima.close()
 
-print(str(multi)+' out of '+str(len(sim_ra))+' sources were matched.')
-
-out_multi=np.array(out_multi)
-sim_ra_y=sim_ra[out_multi==1]
-sim_dec_y=sim_dec[out_multi==1]
-sim_sign_y=sim_sign[out_multi==1]
-sim_tot_y=sim_tot[out_multi==1]
-sim_bkg_y=sim_bkg[out_multi==1]
-sim_cts_y=sim_cts[out_multi==1]
-sim_exp_y=sim_exp[out_multi==1]
-sim_cr_y=sim_cr[out_multi==1]
-sim_flux_y=sim_flux[out_multi==1]
-out_ra_y=out_ra[out_multi==1]
-out_dec_y=out_dec[out_multi==1]
-out_inpflux_y=out_inpflux[out_multi==1]
-out_dist_y=out_dist[out_multi==1]
-#write catalog
-cat=Table([sim_ra_y,sim_dec_y,sim_sign_y,sim_tot_y,sim_bkg_y,sim_cts_y,sim_exp_y,sim_cr_y,sim_flux_y,out_ra_y,out_dec_y,out_inpflux_y,out_dist_y],names=('RA','DEC','DETML','TOT','BKG','NET','EXP','CR','FLUX','CTRP_RA','CTRP_DEC','CTRP_FLUX','CTRP_DIST'))
-cat.write(wd+'simul_broad_matched_cat0.fits',format='fits',overwrite=True) 
-
-
-print(len(unmatched_cts),'were not matched.')
-sim_ra_n=sim_ra[out_multi==0]
-sim_dec_n=sim_dec[out_multi==0]
-sim_sign_n=sim_sign[out_multi==0]
-sim_tot_n=sim_tot[out_multi==0]
-sim_bkg_n=sim_bkg[out_multi==0]
-sim_cts_n=sim_cts[out_multi==0]
-sim_exp_n=sim_exp[out_multi==0]
-sim_cr_n=sim_cr[out_multi==0]
-sim_flux_n=sim_flux[out_multi==0]
-out_ra_n=out_ra[out_multi==0]
-out_dec_n=out_dec[out_multi==0]
-out_inpflux_n=out_inpflux[out_multi==0]
-out_dist_n=out_dist[out_multi==0]
-#write catalog of unmatched sources
-cat=Table([sim_ra_n,sim_dec_n,sim_sign_n,sim_tot_n,sim_bkg_n,sim_cts_n,sim_exp_n,sim_cr_n,sim_flux_n,out_ra_n,out_dec_n,out_inpflux_n,out_dist_n],names=('RA','DEC','DETML','TOT','BKG','NET','EXP','CR','FLUX','CTRP_RA','CTRP_DEC','CTRP_FLUX','CTRP_DIST'))
-cat.write(wd+'simul_broad_unmatched_cat0.fits',format='fits',overwrite=True) 
-
-plt.figure()
-plt.hist(unmatched_cts,bins=int(np.max(unmatched_cts)))
-plt.show()
-
-dat.close()
-sys.exit()
-#############################
-'''
-sim_out_ra,sim_out_dec,sim_out_sig,sim_out_inpflux=np.genfromtxt(wd+'matched_sim_full.dat', unpack=True, skip_header=1)
-
-
-inp_cts,out_cts,out_flux=[],[],[]
-#now, for each detected source compute flux from data and bkg maps
-for i in range(len(sim_out_ra)):
-	print(i+1,len(sim_out_ra))
+out_r90,out_prob,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn=[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+#for each detected source compute flux from data and bkg maps
+for i in range(len(src_ra)):
+	print(i+1,len(src_ra))
+	#here, I could just use the r90 maps I created before...
+	'''
+	cts,bkg,exp,r=[],[],[],[]	
 	#see in which obsids this source is contained 
 	my_obs = FOVFiles('@'+wd+'fov.lis')
-	myobs = my_obs.inside(sim_out_ra[i], sim_out_dec[i])
-	cts,bkg,exp=[],[],[]
+	myobs = my_obs.inside(src_ra[i], src_dec[i])
 	for j in range(len(myobs)):
 		#get theta to compute r90
 		obs=myobs[j][36:-30]
@@ -202,71 +78,100 @@ for i in range(len(sim_out_ra)):
 			stem='00'+obs
 		elif len(obs) == 5:
 			stem=obs
-		path=myobs[j][:-14]+'out/acisf'+stem+'_broad_expomap.fits'
+		
+		
+		path=myobs[j][:-14]+'out/acisf'+stem+'_'+bandbkg+'_expomap.fits'
 		s.call('punlearn dmcoords',shell=True)
-		s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(sim_out_ra[i])+' dec='+str(sim_out_dec[i])+'',shell=True)
+		s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(src_ra[i])+' dec='+str(src_dec[i])+'',shell=True)
 		res=s.check_output('pget dmcoords theta',shell=True)
 		theta=res.splitlines()
 		theta=float(theta[0])
-		r90=1+10*(theta/10.)**2
-		#print(r90)
-		
-		#extract counts and background
-		imagemap=wd+'sim_full/acisf'+stem+'_sim_poiss_bitpix-32.fits'
-		backmap=wd+'data/'+obs+'/repro_new_asol/out/acisf'+stem+'_broad_bkgmap.fits'
-		s.call('pset dmextract infile="'+imagemap+'[bin pos=circle('+str(sim_out_ra[i])+'d,'+str(sim_out_dec[i])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(sim_out_ra[i])+'d,'+str(sim_out_dec[i])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
-		s.call('dmextract',shell=True)
-		s.call('dmlist "counts.fits[cols COUNTS, BG_COUNTS]" data,clean | grep -v COUNTS > counts.dat', shell=True)
-		(cts_i,bkg_i)=np.genfromtxt('counts.dat',unpack=True)
-		cts.append(cts_i)
-		bkg.append(bkg_i)
-		
-		#extract exposure from vignetting-corrected expomap
-		expomap=wd+'data/'+obs+'/repro_new_asol/out/acisf'+stem+'_broad_expomap.fits'
-		s.call('dmextract infile="'+expomap+'[bin pos=circle('+str(sim_out_ra[i])+'d,'+str(sim_out_dec[i])+'d,'+str(r90*0.000277778)+'d)]" mode=h outfile=expo.fits opt=generic mode=h clobber=yes',shell=True)
+		if band == 'hard':
+			r90=1.8+10*(theta/10.)**2
+		else:
+			r90=1+10*(theta/10.)**2
+		r.append(r90)
+
+        
+        #extract exposure from vignetting-corrected expomap
+		expomap=wd+'data/'+obs+'/repro_new_asol/out/acisf'+stem+'_'+bandbkg+'_expomap.fits'
+		s.call('dmextract infile="'+expomap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(r90*0.000277778)+'d)]" mode=h outfile=expo.fits opt=generic mode=h clobber=yes',shell=True)
 		s.call('dmlist "expo.fits[cols COUNTS, AREA]" data,clean | grep -v COUNTS > expo.dat',shell=True)
 		(totexpo,npix)=np.genfromtxt('expo.dat',unpack=True)
 		exp_i=totexpo/npix
 		exp.append(exp_i)
+
+	av_r90=np.sum(np.array(r)*np.array(exp))/np.sum(np.array(exp))
+	totexp=np.sum(np.array(exp))
+	'''	
 	
-	net=np.sum(np.array(cts))-np.sum(np.array(bkg))
-	count_rate=net*1.1/np.sum(np.array(exp))
-	flux=count_rate*1.825E-11
+	s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(src_ra[i])+' dec='+str(src_dec[i])+'',shell=True)
+	res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
+	logicalx,logicaly=res.splitlines()
+	logicalx,logicaly=float(logicalx),float(logicaly)
+	
+	# Define average R90 and ECF from the maps
+	av_r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
+	av_ecf=im2[int(round(logicaly)-1),int(round(logicalx)-1)]
+
+	#extract exposure from vignetting-corrected expomap
+	expomap=wd+'new_mosaics_detection/cdwfs_'+band+'_expomap_4reb.fits'
+	
+	s.call('dmextract infile="'+expomap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h outfile=expo2.fits opt=generic mode=h clobber=yes',shell=True)
+	s.call('dmlist "expo2.fits[cols COUNTS, AREA]" data,clean | grep -v COUNTS > expo2.dat',shell=True)
+	(totexpo,npix)=np.genfromtxt('expo2.dat',unpack=True)
+	av_exp=16.0*totexpo/npix # npix is the number of NATIVE CHANDRA pixels, so need to divide it by 16!
+	
+	#extract counts and background using r90
+	imagemap=wd+simfolder+str(sys.argv[2])+'cdwfs_'+band+'_sim_poiss_4reb.fits'
+	backmap=wd+'new_mosaics_detection/cdwfs_'+band+'_bkgmap_4reb.fits'
+	
+	s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(src_ra[i])+'d,'+str(src_dec[i])+'d,'+str(av_r90*0.000277778)+'d)]" outfile=counts2.fits opt=generic mode=h clobber=yes',shell=True)
+	cts=s.check_output('dmlist "counts2.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
+	bkg=s.check_output('dmlist "counts2.fits[cols BG_COUNTS]" data,clean | grep -v BG_COUNTS',shell=True)
+	cts,bkg=float(cts),float(bkg)
+	e_cts_p=1+np.sqrt(cts+0.75) # Gehrels+86 1sigma errors
+	e_cts_n=np.sqrt(cts-0.25)
+	e_bkg_p=1+np.sqrt(bkg+0.75)
+	if bkg >= 0.25:
+		e_bkg_n=np.sqrt(bkg-0.25)
+	else:
+		e_bkg_n=0	
+
+	# This is the probability of having EXACTLY cts counts given bkg, not of having
+	# AT LEAST cts counts given bkg.
+	prob=scipy.stats.distributions.poisson.pmf(cts,bkg)
+
+	net=cts-bkg
+	e_net_p=np.sqrt(e_cts_p**2+e_bkg_p**2) # Propagate the errors
+	e_net_n=np.sqrt(e_cts_n**2+e_bkg_n**2)
+
+	cr=net*1.1/av_exp
+	e_cr_p=e_net_p*1.1/av_exp # Propagate the errors
+	e_cr_n=e_net_n*1.1/av_exp
+	flux=cr*av_ecf
+	e_flux_p=e_cr_p*av_ecf
+	e_flux_n=e_cr_n*av_ecf
+
+	#define output stuff	
+	out_prob.append(prob)
+	out_r90.append(av_r90)
+	out_tot.append(cts)
+	out_back.append(bkg)
+	out_net.append(net)
+	out_enetp.append(e_net_p)
+	out_enetn.append(e_net_n)
+	out_exp.append(av_exp)
+	out_cr.append(cr)
+	out_ecrp.append(e_cr_p)
+	out_ecrn.append(e_cr_n)
 	out_flux.append(flux)
-	out_cts.append(net*1.1)
-	inp_cts.append(sim_out_inpflux[i]*np.sum(np.array(exp))*5.438E+10)
-	#print(cts)
-	#print(bkg)
-	#print(exp)
-	#print(sim_out_inpflux[i],flux,count_rate)
-	#sys.exit()
+	out_efluxp.append(e_flux_p)
+	out_efluxn.append(e_flux_n)
+
+#write catalog
+cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
+cat.write(wd+simfolder+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat0_exp-psf.fits',format='fits',overwrite=True)
+
 t_out=time.time()
 print((t_out-t_in)/60.,'Minutes for the loop')
-'''
-out_flux=np.array(out_flux)
-
-x=np.logspace(np.log10(1e-17),np.log10(1e-11),30)
-plt.figure()
-plt.plot(x,x,'k--')
-plt.plot(sim_out_inpflux,out_flux,'g.')
-#plt.plot(sim_out_inpflux0,out_flux0,'r.',legend='<0.5"')
-#plt.plot(sim_out_inpflux1,out_flux1,'g.',legend='<1.0"')
-#plt.plot(sim_out_inpflux2,out_flux2,'c.',legend='<1.5"')
-#plt.plot(sim_out_inpflux3,out_flux3,'b.',legend='<2.0"')
-plt.xscale('log')
-plt.yscale('log')
-plt.xlabel('F_in (cgs)')
-plt.ylabel('F_out (cgs)')
-plt.tight_layout()
-plt.show()
-'''
-x=np.linspace(0,300,300)
-plt.figure()
-plt.plot(x,x,'k--')
-plt.plot(inp_cts,out_cts,'g.')
-plt.xscale('log')
-plt.yscale('log')
-plt.xlabel('Cts_in')
-plt.ylabel('Cts_out')
-plt.tight_layout()
-plt.show()

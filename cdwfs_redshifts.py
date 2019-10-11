@@ -1,8 +1,9 @@
 # Code to work out redshifts after the optical-NIR counterparts have been found with NWAY
+# Match with Chung+14
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
-from astropy.table import Table
+from astropy.table import Table,Column
 import sys
 import time
 
@@ -43,28 +44,35 @@ for i in range(32,36):
 
 # Open the matched master catalog (-cp version contains only one CDWFS source per line) 
 # 7338 sources 
-cat=fits.open('/Users/alberto/Downloads/nway-master/cdwfs_I-Ks-3.6-cp.fits')
-pany=cat[1].data['p_any']
+cat=fits.open('/Users/alberto/Downloads/nway-master/090419_trial-cp.fits')
+#cat=fits.open(wd+'CDWFS_I-Ks-3.6_v2.fits')
 data=cat[1].data
 cols=cat[1].columns
 names=cols.names
-fluxs=data['CDWFS_FLUX_S']
-fluxh=data['CDWFS_FLUX_H']
+pany=data['p_any']
+fluxs=data['CHA_FLUX_S']
+fluxh=data['CHA_FLUX_H']
+hr0=data['CHA_HR']
+ehr0p=data['CHA_E_HR_+']
+ehr0n=data['CHA_E_HR_-']
 imag0=data['NDWFS_MAG_AUTO']
 kmag0=data['IBIS_MAG_BEST']
 spmag0=data['SDWFS_ch1_ma']
-sep0=data['Separation_NDWFS_CDWFS']
-sep0k=data['Separation_IBIS_CDWFS']
-sep0sp=data['Separation_SDWFS_CDWFS']
+sep0=data['Separation_NDWFS_CHA']
+sep0k=data['Separation_IBIS_CHA']
+sep0sp=data['Separation_SDWFS_CHA']
+#z=data['z']
+#zflag=data['zflag']
 cat.close()
+print('='*30)
 print('The full CDWFS catalog has',len(data),'sources.')
 
-outcat=[]
-for i in range(len(data)):
-	outcat.append(data[i])
-outcat=np.array(outcat)
+#outcat=[]
+#for i in range(len(data)):
+#	outcat.append(data[i])
+#outcat=np.array(outcat)
 
-p_any_cut=0.54 # Needed to have <5% false associations
+p_any_cut=0.12 # 0.54 (0.12 as of 4-Sep-19) needed to have <5% false associations
 
 imag=imag0[pany>p_any_cut]
 kmag=kmag0[pany>p_any_cut]
@@ -72,6 +80,15 @@ spmag=spmag0[pany>p_any_cut]
 sep=sep0[pany>p_any_cut]
 sepk=sep0k[pany>p_any_cut]
 sepsp=sep0sp[pany>p_any_cut]
+#z=z[pany>p_any_cut]
+#zflag=zflag[pany>p_any_cut]
+hr1=hr0[pany>p_any_cut]
+ehr1p=ehr0p[pany>p_any_cut]
+ehr1n=ehr0n[pany>p_any_cut]
+#Imag_chu=imag[zflag!=-99]
+#Imag_und=imag[zflag==-99]
+#Imag_chu_zsp=imag[zflag==1]
+#Imag_chu_zph=imag[zflag==0]
 print('A total of',len(pany[pany>0]),' (p_any>0) opt-NIR associations found.')
 print('A total of',len(imag),'ROBUST (p_any>'+str(p_any_cut)+') opt-NIR associations found.')
 
@@ -85,6 +102,30 @@ print('I band good photometry:',len(imag))
 print('Ks band good photometry:',len(kmag))
 print('[3.6] band good photometry:',len(spmag))
 
+'''
+hr=hr1[zflag!=-99]
+ehrp=ehr1p[zflag!=-99]
+ehrn=ehr1n[zflag!=-99]
+zsp=z[zflag==1]
+zph=z[zflag==0]
+ztot=list(zsp)+list(zph)
+print(len(ztot),' redshifts:',len(zsp),'spec-z,',len(zph),'photo-z in the robust subsample.')
+print('='*30)
+bins=np.linspace(0,5,30)
+plt.figure()
+plt.hist(ztot,bins=bins,histtype='step',linewidth=3,color='k')
+plt.hist(zsp,bins=bins,histtype='step',linewidth=2,color='cyan',label='Spec-z')
+plt.hist(zph,bins=bins,histtype='step',linewidth=2,color='red',label='Photo-z')
+plt.legend()
+plt.show()
+
+plt.figure()
+plt.scatter(ztot,hr,marker='.',color='black')
+plt.xlabel(r'$z$')
+plt.ylabel(r'HR=(H-S)/(H+S)')
+plt.show()
+sys.exit()
+'''
 #bins=np.linspace(np.min(Imag[Imag>0.]),np.max(Imag[Imag>0.]),31)
 bins=30
 plt.figure()
@@ -105,10 +146,11 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
-f,ax=plt.subplots(1,3,figsize=[11,5])
+f,ax=plt.subplots(1,3,figsize=[11,5],sharey=True)
 ax[0].scatter(sep,imag,color='green',marker='.')
 ax[0].set_xlabel('Separation ["]')
 ax[0].set_ylabel('I-band mag')
+ax[0].axis([0,15,8,30])
 
 ax[1].scatter(sepk,kmag,color='orange',marker='.')
 ax[1].set_xlabel('Separation ["]')
@@ -117,9 +159,11 @@ ax[1].set_ylabel('K-band mag')
 ax[2].scatter(sepsp,spmag,color='red',marker='.')
 ax[2].set_xlabel('Separation ["]')
 ax[2].set_ylabel('[3.6]-band mag')
+
 plt.show()
 
 '''++++++++++++++++++++++ REDSHIFT PART ++++++++++++++++++++++'''
+'''+++++++++++++++++++ MATCH with CHUNG+14 +++++++++++++++++++'''
 opt_ra=data['NDWFS_RA_J2000']
 opt_dec=data['NDWFS_DEC_J2000']
 Imag=data['NDWFS_MAG_AUTO']
@@ -143,24 +187,40 @@ chucat=fits.open(wd+'xbootes_chung+14.fits')
 chu_ra=chucat[1].data['RAJ2000']
 chu_dec=chucat[1].data['DEJ2000']
 chu_zsp=chucat[1].data['zsp']
-chu_zph=chucat[1].data['z_G_A_']
+chu_zph_g=chucat[1].data['z_G_']
+chu_chi_g=chucat[1].data['chi2_G_']
+chu_zph_ga=chucat[1].data['z_G_A_']
+chu_chi_ga=chucat[1].data['chi2_G_A_']
+chu_ebv=chucat[1].data['E_B-V_']
+chu_chi_s=chucat[1].data['chi2_S_']
 chucat.close()
 
-z=chu_zsp
-z_sp=np.full_like(z,True,dtype='bool')
-z_sp[np.isnan(chu_zsp)]=False
-z[np.isnan(chu_zsp)]=chu_zph[np.isnan(chu_zsp)]
+#z=chu_zsp
+spectro=np.full_like(chu_zsp,True,dtype='bool')
+spectro[np.isnan(chu_zsp)]=False
+#z[np.isnan(chu_zsp)]=chu_zph[np.isnan(chu_zsp)]
+
 tin=time.time()
 mat=0
-Imag_chu,Imag_und,sp,z_out=[],[],[],[]
+Imag_chu,Imag_und,sp,z_out_sp,z_out_ga,z_out_g,z_out_s,zflag,ebv,chi_ga,chi_g,chi_s=[],[],[],[],[],[],[],[],[],[],[],[]
 for i in range(len(ra)):
 	found=0
 	opt=[ra[i],dec[i]]
 	delta = 0.00056 #(0.028 ~100")
+	
 	cut_chu_ra=chu_ra[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
 	cut_chu_dec=chu_dec[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
-	cut_chu_z_sp=z_sp[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
-	cut_z=z[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	
+	cut_spectro=spectro[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	cut_zsp=chu_zsp[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	cut_zph_ga=chu_zph_ga[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	cut_zph_g=chu_zph_g[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	
+	cut_chi_ga=chu_chi_ga[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	cut_chi_g=chu_chi_g[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	cut_chi_s=chu_chi_s[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	cut_ebv=chu_ebv[(chu_ra>=ra[i]-delta) & (chu_ra<=ra[i]+delta) & (chu_dec>=dec[i]-delta) & (chu_dec<=dec[i]+delta)]
+	
 	for j in range(len(cut_chu_ra)):
 		chu=[cut_chu_ra[j],cut_chu_dec[j]]
 		d=distance(opt,chu)
@@ -168,20 +228,60 @@ for i in range(len(ra)):
 			found=1
 			mat=mat+1
 			Imag_chu.append(Imag[i])
-			z_out.append(cut_z[j])
-			if cut_chu_z_sp[j] == True:
+			
+			if cut_spectro[j] == True:
 				sp.append(True)
-				zflag.append(0)
+				#zflag.append(1)
+				z_out_sp.append(cut_zsp[j])
+				z_out_ga.append(cut_zph_ga[j])
+				z_out_g.append(cut_zph_g[j])
+				ebv.append(cut_ebv[j])
+				chi_ga.append(cut_chi_ga[j])
+				chi_g.append(cut_chi_g[j])
+				chi_s.append(cut_chi_s[j])
 			else:
 				sp.append(False)
-				zflag.append(1)
+				#zflag.append(0)
+				z_out_sp.append(-99.0)
+				z_out_ga.append(cut_zph_ga[j])
+				ebv.append(cut_ebv[j])
+				chi_ga.append(cut_chi_ga[j])
+				z_out_g.append(cut_zph_g[j])
+				chi_g.append(cut_chi_g[j])
+				chi_s.append(cut_chi_s[j])
 	if found==0:
 		Imag_und.append(Imag[i])
-		z_out.append(-99.0)
-		zflag.append(-99.0)
+		#zflag.append(-99.0)
+		z_out_sp.append(-99.0)
+		z_out_ga.append(-99.0)
+		ebv.append(-99.0)
+		chi_ga.append(-99.0)
+		z_out_g.append(-99.0)
+		chi_g.append(-99.0)
+		chi_s.append(-99.0)
 print(mat,'matched with Chung in',(time.time()-tin)/60.,'minutes.')
 
+
 # Write out catalog
+table = Table.read('/Users/alberto/Downloads/nway-master/090419_trial-cp.fits', format='fits')
+
+t1 = Column(name='zsp', data=z_out_sp)
+t2 = Column(name='zph_G+A', data=z_out_ga)
+t3 = Column(name='E_B-V', data=ebv)
+t4 = Column(name='chi2_G+A', data=chi_ga)
+t5 = Column(name='zph_G', data=z_out_g)
+t6 = Column(name='chi2_G', data=chi_g)
+t7 = Column(name='chi2_S', data=chi_s)
+table.add_column(t1)
+table.add_column(t2)
+table.add_column(t3)
+table.add_column(t4)
+table.add_column(t5)
+table.add_column(t6)
+table.add_column(t7)
+table.write(wd+'CDWFS_I-Ks-3.6_v2.fits', format='fits', overwrite='True')
+sys.exit()
+'''
 vet_col=[]
 for i in range(len(names)):
 	vet_col.append(outcat[:,i])
@@ -194,13 +294,7 @@ vet_col.append(zflag)
 
 cat=Table(vet_col,names=names)
 cat.write(wd+'CDWFS_I-Ks-3.6_v2.fits',format='fits',overwrite=True)
-
-Imag_chu=np.array(Imag_chu)
-Imag_und=np.array(Imag_und)
-sp=np.array(sp)
-print(len(sp[sp==True]),'spectroscopic z, and',len(sp[sp==False]),'photometric z.')
-Imag_chu_zsp=Imag_chu[sp==True]
-Imag_chu_zph=Imag_chu[sp==False]
+'''
 
 bins=np.linspace(12,max(Imag_chu[(Imag_chu<99.) & (Imag_chu!=-99.)]),30)
 plt.figure()

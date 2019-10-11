@@ -7,6 +7,7 @@ from astropy.io import fits
 from astropy.table import Table
 import matplotlib.pyplot as plt
 import time
+#from ciao_contrib.region.check_fov import FOVFiles
 
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180*3.141592)
@@ -31,11 +32,12 @@ def choose_worst(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
+simfolder = 'sim_indep/'
+
 band=str(sys.argv[1])
 
 #take catalog of detected sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap)
-cat1=fits.open(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat0.fits')
-#cat1=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0.fits')
+cat1=fits.open(wd+simfolder+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat0_exp-psf.fits')
 
 ra_d=cat1[1].data['RA']
 dec_d=cat1[1].data['DEC']
@@ -60,17 +62,17 @@ pool=build_struct(ra_d,dec_d,prob,r90,tot,bkg,net,enetp,enetn,exp,cr,ecrp,ecrn,f
 print(len(pool),'total sample')
 '''
 #take list of sources in input to simulation
-#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_lehmer.dat',unpack=True,skip_header=1)
+(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma)=np.genfromtxt(wd+'poiss_rand_lehmer_newgamma.dat',unpack=True,skip_header=1)
 ### NEED TO FILTER THESE SOURCES WITH THE TOTAL FOV OF THE CDWFS, SOME OF THEM ARE OUTSIDE 
 ### AND CANNOT BE MATCHED BY DEFINITION
-#w=open(wd+'poiss_rand_'+band+'_lehmer_filtered.dat','w')
-#w.write('Flux \t RA \t DEC \n')
-#my_obs = FOVFiles('@'+wd+'fov.lis')
-#for i in range(len(ra_cdwfs)):
-#	myobs = my_obs.inside(ra_cdwfs[i], dec_cdwfs[i])
-#	if len(myobs) > 0:
-#		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \n')
-#w.close()
+w=open(wd+'poiss_rand_lehmer_newgamma_filtered.dat','w')
+w.write('Flux \t RA \t DEC \t Gamma\n')
+my_obs = FOVFiles('@'+wd+'fov.lis')
+for i in range(len(ra_cdwfs)):
+	myobs = my_obs.inside(ra_cdwfs[i], dec_cdwfs[i])
+	if len(myobs) > 0:
+		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \t '+str(gamma[i])+'\n')
+w.close()
 #print(len(ra_cdwfs))
 
 #take filtered list of sources in input to simulation
@@ -186,7 +188,7 @@ for i in range(len(final_list)):
 cat=Table([newpool[:,0],newpool[:,1],newpool[:,2],newpool[:,3],newpool[:,4],newpool[:,5],newpool[:,6],newpool[:,7],newpool[:,8],newpool[:,9],newpool[:,10],newpool[:,11],newpool[:,12],newpool[:,13],newpool[:,14],newpool[:,15]],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
 
 #cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat1.fits',format='fits',overwrite=True)
-cat.write(wd+'sim_all_new/'+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat1.fits',format='fits',overwrite=True)
+cat.write(wd+simfolder+str(sys.argv[2])+'cdwfs_'+band+'_sim_cat1_exp-psf.fits',format='fits',overwrite=True)
 
 print(len(pool), 'in input')
 print(len(newpool), 'in output')

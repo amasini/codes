@@ -4,6 +4,7 @@ from astropy.io import fits
 from astropy.table import Table
 import sys
 import time
+import matplotlib.pyplot as plt
 
 t_start=time.time()
 
@@ -13,76 +14,84 @@ def distance(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-print('You may want to use the faster version merge_catalogs_v2.py. Exit.')
-sys.exit()
-
 # Open full band catalog (no multiple, output from clean_multiple_sources.py)
-fcat=fits.open(wd+'new_mosaics_detection/cdwfs_broad_cat1.fits')
+fcat=fits.open(wd+'new_mosaics_detection/cdwfs_broad_cat1_exp-psf.fits')
 raf=fcat[1].data['RA']
 decf=fcat[1].data['DEC']
 r90f=fcat[1].data['AV_R90']
 
 filef=fcat[1].data
+
 fcat.close()
 
-#w=open(wd+'new_mosaics_detection/cdwfs_broad_cat1.reg','w')
-#for i in range(len(raf)):
-#	w.write('circle('+str(raf[i])+'d,'+str(decf[i])+'d,'+str(r90f[i])+'\")\n')
-#w.close()
+w=open(wd+'new_mosaics_detection/cdwfs_broad_cat1_exp-psf.reg','w')
+for i in range(len(raf)):
+	w.write('circle('+str(raf[i])+'d,'+str(decf[i])+'d,'+str(r90f[i])+'\")\n')
+w.close()
 
 # Open soft band catalog (no multiple)
-scat=fits.open(wd+'new_mosaics_detection/cdwfs_soft_cat1.fits')
+scat=fits.open(wd+'new_mosaics_detection/cdwfs_soft_cat1_exp-psf.fits')
 ras=scat[1].data['RA']
 decs=scat[1].data['DEC']
 r90s=scat[1].data['AV_R90']
 
 files=scat[1].data
+scat.close()
 
-#w=open(wd+'new_mosaics_detection/cdwfs_soft_cat1.reg','w')
-#for i in range(len(ras)):
-#	w.write('circle('+str(ras[i])+'d,'+str(decs[i])+'d,'+str(r90s[i])+'\") #color=red \n')
-#w.close()
+w=open(wd+'new_mosaics_detection/cdwfs_soft_cat1_exp-psf.reg','w')
+for i in range(len(ras)):
+	w.write('circle('+str(ras[i])+'d,'+str(decs[i])+'d,'+str(r90s[i])+'\") #color=red \n')
+w.close()
 
+files=np.array(files)
 
-fints=[] # List containing the output file
+tin=time.time()
+fints=[] # List containing the intersection between F and S
+delta = 0.007 #(0.028 ~100")
+multi_counterpart=0
 for linef in range(len(filef)):
 	sourcef=[raf[linef],decf[linef]]
 	found=0
 	
-	for lines in range(len(files)):
-		sources=[ras[lines],decs[lines]]
-		if distance(sourcef,sources) <= r90f[linef]:
-			if found==1:
-				print('Double counterpart for',raf[linef],decf[linef])
-				
-			else:
-				fints.append([filef[linef],files[lines]])
-				found=1
-			
-	if found==0:
-		fints.append([filef[linef],np.zeros(len(files[0]))])
-
-
-for lines in range(len(files)):
-	sources=[ras[lines],decs[lines]]
-	found=0
-
-	for i in range(len(fints)):
-		if fints[i][1][0] == ras[lines]: # The source has been already matched
+	filt_files=files[(files['RA'] >= raf[linef]-delta) & (files['RA'] <= raf[linef]+delta) & (files['DEC'] >= decf[linef]-delta) & (files['DEC'] <= decf[linef]+delta)]
+		
+	counterparts,distances=[],[]
+	for lines in range(len(filt_files)):
+		sources=[filt_files['RA'][lines],filt_files['DEC'][lines]]
+		dist = distance(sourcef,sources)
+		if dist <= r90f[linef]:
+			counterparts.append([filef[linef],filt_files[lines]])
+			distances.append(dist)
 			found=1
 			
-	if found==0:
-		fints.append([np.zeros(len(filef[0])),files[lines]])
-
-scat.close()
+	if found == 0:
+		fints.append([filef[linef],np.zeros(len(files[0]))])
+		
+	else:
+		if len(counterparts) == 1:
+			fints.append(counterparts[0])
+			files=np.delete(files,np.where(files['RA']==counterparts[0][1][0]),0)
+		else:
+			print('Here for source',raf[linef],decf[linef])
+			multi_counterpart += 1
+			'''
+			counterparts=np.array(counterparts)
+			distances=np.array(distances)
+			sys.exit()
+			fints.append(counterparts[distances==np.min(distances)][0])
+			files=np.delete(files,np.where(files['RA']==counterparts[0][1][0]),0)
+			'''
+for lines in range(len(files)):
+	fints.append([np.zeros(len(filef[0])),files[lines]])
 
 # Open hard band catalog (no multiple)
-hcat=fits.open(wd+'new_mosaics_detection/cdwfs_hard_cat1.fits')
+hcat=fits.open(wd+'new_mosaics_detection/cdwfs_hard_cat1_exp-psf.fits')
 rah=hcat[1].data['RA']
 dech=hcat[1].data['DEC']
 r90h=hcat[1].data['AV_R90']
 
 fileh=hcat[1].data
+fileh=np.array(fileh)
 
 fintsinth=[]
 for i in range(len(fints)):
@@ -93,54 +102,43 @@ for i in range(len(fints)):
 	
 	found=0
 	
-	for lineh in range(len(fileh)):
-		sourceh=[rah[lineh],dech[lineh]]
-		if distance(sourceh,source_fors) <= r90h[lineh]:
-			if found==1:
-				print('Double counterpart for',rah[lineh],dech[lineh])
-				
-			else:
-				fintsinth.append([fints[i],fileh[lineh]])
-				found=1
-		
-	if found==0:
-		fintsinth.append([fints[i],np.zeros(len(fileh[0]))])
-
-for lineh in range(len(fileh)):
-	sourceh=[rah[lineh],dech[lineh]]
-	found=0
-
-	for i in range(len(fintsinth)):
-		if fintsinth[i][1][0] == rah[lineh]: # The source has been already matched
+	filt_fileh=fileh[(fileh['RA'] >= source_fors[0]-delta) & (fileh['RA'] <= source_fors[0]+delta) & (fileh['DEC'] >= source_fors[1]-delta) & (fileh['DEC'] <= source_fors[1]+delta)]
+	
+	counterparts,distances=[],[]
+	for lineh in range(len(filt_fileh)):
+		sourceh=[filt_fileh['RA'][lineh],filt_fileh['DEC'][lineh]]
+		dist = distance(sourceh,source_fors)
+		if dist <= r90h[lineh]:
+			counterparts.append([fints[i],filt_fileh[lineh]])
+			distances.append(dist)
 			found=1
 			
 	if found==0:
-		fintsinth.append([[np.zeros(len(filef[0])),np.zeros(len(files[0]))],fileh[lineh]])
+		fintsinth.append([fints[i],np.zeros(len(fileh[0]))])
+		
+	else:
+		if len(counterparts) == 1:
+			fintsinth.append(counterparts[0])
+			fileh=np.delete(fileh,np.where(fileh['RA']==counterparts[0][1][0]),0)
+		else:
+			print('Here for source',raf[linef],decf[linef])
+			multi_counterpart += 1
+			'''
+			counterparts=np.array(counterparts)
+			distances=np.array(distances)
+			sys.exit()
+			fints.append(counterparts[distances==np.min(distances)][0])
+			files=np.delete(files,np.where(files['RA']==counterparts[0][1][0]),0)
+			'''
+			
+for lineh in range(len(fileh)):
+	fintsinth.append([[np.zeros(len(filef[0])),np.zeros(len(files[0]))],fileh[lineh]])
 
 hcat.close()
 
-print(round((time.time()-t_start)/60.,1),'minutes')
-print(len(fintsinth))
+print('Finished in',round((time.time()-t_start),1),'seconds, with',len(fintsinth),'sources.')
+print('I found',multi_counterpart,'multiple counterparts')
 
-sys.exit()
-
-#print(fintsinth[0])
-#print(fintsinth[9669])
-#print(fintsinth[9670])
-#for i in range(len(fintsinth)):
-#	print(i, fintsinth[i][0][0][0])
-#sys.exit()
-
-#print(fintsinth[0][0][0][0])
-'''
-new=[]
-a,b,c=[],[],[]
-for i in range(len(fintsinth)):
-	a.append(fintsinth[i][0][0])
-	b.append(fintsinth[i][0][1])
-	c.append(fintsinth[i][1])
-print(a[0],b[0],c[0])
-'''
 out_raf,out_decf,out_probf,out_r90f,out_totf,out_bkgf,out_netf,out_enetf_up,out_enetf_lo,out_expf,out_crf,out_ecrf_up,out_ecrf_lo,out_fluxf,out_efluxf_up,out_efluxf_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
 out_ras,out_decs,out_probs,out_r90s,out_tots,out_bkgs,out_nets,out_enets_up,out_enets_lo,out_exps,out_crs,out_ecrs_up,out_ecrs_lo,out_fluxs,out_efluxs_up,out_efluxs_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
 out_rah,out_dech,out_probh,out_r90h,out_toth,out_bkgh,out_neth,out_eneth_up,out_eneth_lo,out_exph,out_crh,out_ecrh_up,out_ecrh_lo,out_fluxh,out_efluxh_up,out_efluxh_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
@@ -198,6 +196,4 @@ for i in range(len(fintsinth)):
 
 #write catalog
 cat=Table([out_raf,out_decf,out_probf,out_r90f,out_totf,out_bkgf,out_netf,out_enetf_up,out_enetf_lo,out_expf,out_crf,out_ecrf_up,out_ecrf_lo,out_fluxf,out_efluxf_up,out_efluxf_lo,out_ras,out_decs,out_probs,out_r90s,out_tots,out_bkgs,out_nets,out_enets_up,out_enets_lo,out_exps,out_crs,out_ecrs_up,out_ecrs_lo,out_fluxs,out_efluxs_up,out_efluxs_lo,out_rah,out_dech,out_probh,out_r90h,out_toth,out_bkgh,out_neth,out_eneth_up,out_eneth_lo,out_exph,out_crh,out_ecrh_up,out_ecrh_lo,out_fluxh,out_efluxh_up,out_efluxh_lo],names=('RA_F','DEC_F','PROB_F','R90_F','TOT_F','BKG_F','NET_F','E_NET_F_+','E_NET_F_-','EXP_F','CR_F','E_CR_F_+','E_CR_F_-','FLUX_F','E_FLUX_F_+','E_FLUX_F_-', 'RA_S','DEC_S','PROB_S','R90_S','TOT_S','BKG_S','NET_S','E_NET_S_+','E_NET_S_-','EXP_S','CR_S','E_CR_S_+','E_CR_S_-','FLUX_S','E_FLUX_S_+','E_FLUX_S_-', 'RA_H','DEC_H','PROB_H','R90_H','TOT_H','BKG_H','NET_H','E_NET_H_+','E_NET_H_-','EXP_H','CR_H','E_CR_H_+','E_CR_H_-','FLUX_H','E_FLUX_H_+','E_FLUX_H_-'))
-cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat0.fits',format='fits',overwrite=True)
-
-print((time.time()-t_start)/60.,'minutes')
+cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat0_exp-psf.fits',format='fits',overwrite=True)

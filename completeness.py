@@ -1,530 +1,668 @@
-#completeness and flux_in VS flux_out
+#completeness and flux_in VS flux_out following Georgakakis+08
 
-#match simulated sources detected to input ones, computing the reliability and completeness
-# of the sample
 import numpy as np
 import sys
 from astropy.io import fits
 import matplotlib.pyplot as plt
 import time
-from ciao_contrib.region.check_fov import FOVFiles
+#from ciao_contrib.region.check_fov import FOVFiles
+from scipy.stats import gaussian_kde
+import scipy.stats.distributions
+from scipy.optimize import minimize
+import matplotlib as mpl
+#import numdifftools as nd
 
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180*3.141592)
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600)**2 +((pointa[1]-pointb[1])*3600)**2)
 
-def build_struct(a,b,c,d,e):
+def build_struct(a,b,c,d,e,f,g,h,hh):
 	s=[]
 	for j in range(len(a)):
-		s.append([a[j],b[j],c[j],d[j],e[j]])
+		s.append([a[j],b[j],c[j],d[j],e[j],f[j],g[j],h[j],hh[j]])
 	s=np.array(s)
 	return s
-	
+
+# define some gammas and list the conversion factors from PIMMS, plus the ratio to the full band flux
+gamma=np.arange(0.9,2.4,0.1)
+
+fluxrat_s=[0.2050,0.2267,0.2500,0.2749,0.3013,0.3292,0.3584,0.3888,0.4201,0.4521,0.4846,0.5173,0.5499,0.5822,0.6138]
+
+# now interpolate these binned functions to get more finely sampled curves
+xvals = np.arange(0.9, 2.31, 0.01)
+
+for i in range(len(xvals)):
+	xvals[i]=round(xvals[i],2)
+fluxinterp_s = np.interp(xvals, gamma, fluxrat_s)
+
+
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-band='broad'
+band='soft'
+simfolder='sim_indep/'
+nsim=10
 
-#take catalog of detected sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap)
-cat1=fits.open(wd+'cdwfs_'+band+'_cat1_sim.fits')
-
-ra_d=cat1[1].data['RA']
-dec_d=cat1[1].data['DEC']
-cts_full=cat1[1].data['TOT']
-prob=cat1[1].data['PROB']
-r90=cat1[1].data['AV_R90']
-flux_d=cat1[1].data['FLUX']
-print(len(ra_d),'total sample')
-
-#define cut at 1% of spurious fraction
-if band=='broad':
-	cut=6e-5
-elif band=='soft':
-	cut=1.4e-4
-elif band=='hard':
-	cut=6e-5
-
-#cut detected sample at a given probability threshold 
-ra_d=ra_d[prob<=cut]
-dec_d=dec_d[prob<=cut]
-cts_full=cts_full[prob<=cut]
-r90=r90[prob<=cut]
-flux_d=flux_d[prob<=cut]
-prob=prob[prob<=cut]
-
-pool=build_struct(ra_d,dec_d,r90,flux_d,prob)
-print(len(pool),'above rel threshold')
-
-#take list of sources in input to simulation
-#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_lehmer.dat',unpack=True,skip_header=1)
-### NEED TO FILTER THESE SOURCES WITH THE TOTAL FOV OF THE CDWFS, SOME OF THEM ARE OUTSIDE 
-### AND CANNOT BE MATCHED BY DEFINITION
-#w=open(wd+'poiss_rand_'+band+'_lehmer_filtered.dat','w')
-#w.write('Flux \t RA \t DEC \n')
-#my_obs = FOVFiles('@'+wd+'fov.lis')
-#for i in range(len(ra_cdwfs)):
-#	myobs = my_obs.inside(ra_cdwfs[i], dec_cdwfs[i])
-#	if len(myobs) > 0:
-#		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \n')
-#w.close()
-#print(len(ra_cdwfs))
-
-#take filtered list of sources in input to simulation
-(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmerx20_filtered.dat',unpack=True,skip_header=1,usecols=[0,1,2])
-if band=='soft':
-	flux_cdwfs=0.33*flux_cdwfs
-elif band=='hard':
-	flux_cdwfs=0.67*flux_cdwfs
-
-# Sort them to start from the bright ones
-ra_cdwfs=ra_cdwfs[::-1]
-dec_cdwfs=dec_cdwfs[::-1]
-flux_cdwfs=flux_cdwfs[::-1]
-
-print('Starting to match...')
-t_in=time.time()
 flux_inp,flux_out=[],[]
-unmatched,blendings=0,0
-newpool=pool
-
-#print(newpool[0],len(newpool[:,0]))
-#myra=newpool[:,0][0]
-#newpool=newpool[:,0][(newpool[:,0]>=myra-0.014) & (newpool[:,0]<=myra+0.014)]
-#print(newpool,len(newpool))
-#newpool2=np.delete(newpool,np.where(newpool[:,0]==myra),0)
-#print(newpool2[0],len(newpool2))
-#sys.exit()
-
-r90eff,deff=[],[]
-for i in range(len(ra_cdwfs)):
-	input_source=[ra_cdwfs[i],dec_cdwfs[i]]
+input=[]
+tots,bkgs,expos,crs=[],[],[],[]
+print('Starting to match '+str(nsim)+' sims in the '+band+' band...')
+t_in=time.time()
+for k in range(nsim):
 	
-	found=0
-	counterparts=[]
-	count=0
-	
-	print(len(newpool[:,0]))
+	print(k+1, end=" ")
+	#take catalog of detected sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap)
+	cat1=fits.open(wd+simfolder+str(k)+'cdwfs_'+band+'_sim_cat1.fits')
 
-	delta = 0.014 #(0.028 ~100")
-	ra_d_filt=newpool[:,0][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
-	dec_d_filt=newpool[:,1][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
-	flux_d_filt=newpool[:,3][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
-	r90_d_filt=newpool[:,2][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
-	prob_d_filt=newpool[:,4][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
-	counterparts,probabilities,distances,mat_rad=[],[],[],[]
-	for j in range(len(ra_d_filt)):
-		cdwfs_source=[ra_d_filt[j],dec_d_filt[j]]
-		match_rad=1.1*r90_d_filt[j]
-		d=distance(input_source,cdwfs_source)
-		if d <= match_rad: #found a match
-			if found==0: #it's the first
-				found=1
-				#flux_inp.append(flux_cdwfs_filt[j])
-				#flux_out.append(flux_d[i])
-				counterparts.append(flux_d_filt[j])
-				probabilities.append(prob_d_filt[j])
-				distances.append(d)
-				mat_rad.append(match_rad)
-			else: #it's not the first match	
-				count=count+2
-				blendings=blendings+1
-				counterparts.append(flux_d_filt[j])
-				probabilities.append(prob_d_filt[j])
-				distances.append(d)
-				mat_rad.append(match_rad)
-				#print('Found the '+str(count)+'nd/rd/th counterpart to '+str(kenter_source))
-	if found == 1:
-		if len(counterparts) == 1:
-			flux_inp.append(flux_cdwfs[i])
-			flux_out.append(counterparts[0])
-			r90eff.append(mat_rad[0])
-			deff.append(distances[0])
-			#print(len(newpool[:,0]))
-			#print(len(newpool[newpool[:,3]==counterparts[0]]),newpool[newpool[:,3]==counterparts[0]])
-			newpool=np.delete(newpool,np.where(newpool[:,3]==counterparts[0]),0)
-			#print(len(newpool[:,0]))
+	ra_d=cat1[1].data['RA']
+	dec_d=cat1[1].data['DEC']
+	tot=cat1[1].data['TOT']
+	bkg=cat1[1].data['BKG']
+	exp=cat1[1].data['EXP'] # Exposure in secs
+	prob=cat1[1].data['PROB']
+	r90=cat1[1].data['AV_R90']
+	cr=cat1[1].data['CR']
+	flux_d=cat1[1].data['FLUX']
+	#print(len(ra_d),'total sample')
+
+	cut = 1e-4
+	'''
+	#define cut at 1% of spurious fraction
+	if band=='broad':
+		cut=8e-5
+	elif band=='soft':
+		cut=6e-4
+	elif band=='hard':
+		cut=4e-5
+	'''
+	#cut detected sample at a given probability threshold 
+	ra_d=ra_d[prob<=cut]
+	dec_d=dec_d[prob<=cut]
+	tot=tot[prob<=cut]
+	bkg=bkg[prob<=cut]
+	exp=exp[prob<=cut]
+	cr=cr[prob<=cut]
+	r90=r90[prob<=cut]
+	flux_d=flux_d[prob<=cut]
+	prob=prob[prob<=cut]
+	print(len(ra_d),'above threshold (',cut,')')
+	
+	pool=build_struct(ra_d,dec_d,r90,flux_d,prob,tot,bkg,exp,cr)
+	#print(len(pool),'above rel threshold')
+
+	### NEED TO FILTER THESE SOURCES WITH THE TOTAL FOV OF THE CDWFS, SOME OF THEM ARE OUTSIDE 
+	### AND CANNOT BE MATCHED BY DEFINITION
+	#take list of sources in input to simulation
+	#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_lehmer.dat',unpack=True,skip_header=1)
+	#w=open(wd+'poiss_rand_'+band+'_lehmer_filtered.dat','w')
+	#w.write('Flux \t RA \t DEC \n')
+	#my_obs = FOVFiles('@'+wd+'fov.lis')
+	#for i in range(len(ra_cdwfs)):
+	#	myobs = my_obs.inside(ra_cdwfs[i], dec_cdwfs[i])
+	#	if len(myobs) > 0:
+	#		w.write(str(flux_cdwfs[i])+' \t '+str(ra_cdwfs[i])+' \t '+str(dec_cdwfs[i])+' \n')
+	#w.close()
+	#print(len(ra_cdwfs))
+
+	#take filtered list of sources in input to simulation
+	if simfolder == 'sim_indep/':
+		(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])
+		'''
+		if band != 'soft':
+			ra_cdwfs=ra_cdwfs[flux_cdwfs>3e-16]
+			dec_cdwfs=dec_cdwfs[flux_cdwfs>3e-16]
+			flux_cdwfs=flux_cdwfs[flux_cdwfs>3e-16]
 		else:
-			counterparts=np.array(counterparts)
-			probabilities=np.array(probabilities)
-			mat_rad=np.array(mat_rad)
-			distances=np.array(distances)
-			flux_inp.append(flux_cdwfs[i])
-			flux_out.append(counterparts[probabilities==np.min(probabilities)])
-			r90eff.append(mat_rad[probabilities==np.min(probabilities)])
-			deff.append(distances[probabilities==np.min(probabilities)])
-			#print(len(newpool[newpool[:,3]==counterparts[probabilities==np.min(probabilities)]]),newpool[newpool[:,3]==counterparts[probabilities==np.min(probabilities)]])
-			#print(len(newpool[:,0]))
-			newpool=np.delete(newpool,np.where(newpool[:,3]==counterparts[probabilities==np.min(probabilities)]),0)
-			#print(len(newpool[:,0]))
-			#sys.exit()
+			ra_cdwfs=ra_cdwfs[flux_cdwfs>9e-17]
+			dec_cdwfs=dec_cdwfs[flux_cdwfs>9e-17]
+			flux_cdwfs=flux_cdwfs[flux_cdwfs>9e-17]
+		'''
+	elif simfolder == 'sim_all_FINAL/':
+		(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmer_filtered.dat',unpack=True,skip_header=1,usecols=[0,1,2,3])
+		for m in range(len(gamma_cdwfs)):
+			if band=='soft':
+				flux_ratio=fluxinterp_s[xvals==gamma_cdwfs[m]]
+				flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
+			elif band=='hard':
+				flux_ratio=1.-fluxinterp_s[xvals==gamma_cdwfs[m]]
+				flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
+	elif simfolder == 'sim_newgamma/':
+		(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmer_newgamma_filtered.dat',unpack=True,skip_header=1,usecols=[0,1,2,3])
+		#if band=='soft':
+		#	flux_cdwfs=0.33*flux_cdwfs
+		#	# Gamma =1.8
+		#	#flux_cdwfs=flux_cdwfs*4.521E-01
+		#elif band=='hard':
+		#	flux_cdwfs=0.67*flux_cdwfs
+		for m in range(len(gamma_cdwfs)):
+			if band=='soft':
+				flux_ratio=fluxinterp_s[xvals==gamma_cdwfs[m]]
+				flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
+			elif band=='hard':
+				flux_ratio=1.-fluxinterp_s[xvals==gamma_cdwfs[m]]
+				flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
+	elif simfolder == 'sim_all_new/':
+		(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmer_filtered.dat',unpack=True,skip_header=1,usecols=[0,1,2,3])
+		if band=='soft':
+			flux_cdwfs=0.33*flux_cdwfs
+			# Gamma =1.8
+			#flux_cdwfs=flux_cdwfs*4.521E-01
+		elif band=='hard':
+			flux_cdwfs=0.67*flux_cdwfs
+			#flux_cdwfs=flux_cdwfs*5.479E-01
 	
-	else:
-		unmatched=unmatched+1
-
-t_out=time.time()
-print(len(ra_cdwfs), 'in input')
-print(len(flux_inp), 'matched')
-print(unmatched, 'unmatched')
-print(blendings,' blendings')
-print(float(t_out-t_in),' seconds for the match.')
-
-n,be=np.histogram(deff,bins=25)
-be2=list((be[i+1]+be[i])/2. for i in range(len(be)-1))
-nsum=np.cumsum(n)/float(np.sum(n))
-
-f,(ax1,ax2)=plt.subplots(2,1,sharex=True)
-ax1.hist(deff,bins=25)
-ax1.set_ylabel('N')
-ax2.plot(be2,nsum,'b-')
-ax2.set_ylabel('Cumulative fraction')
-ax2.set_xlabel('Distance [arcsec]')
-plt.savefig(wd+'cdwfs_dist-cum.pdf',format='pdf')
-
-
-r90eff=np.array(r90eff)
-deff=np.array(deff)
-
-n,bedges=np.histogram(r90eff,bins=15)
-bcenters=list((bedges[i+1]+bedges[i])/2. for i in range(len(bedges)-1))
-av=[]
-for j in range(len(bcenters)):
-	flag=[]
-	for i in range(len(deff)):
-		if (r90eff[i] > bedges[j] and r90eff[i] < bedges[j+1]): 
-			flag.append(1)
-		else:
-			flag.append(0)
-	flag=np.array(flag)
-	deff2=deff[flag==1]
-	if len(deff2) > 1:
-		av.append(np.median(deff2))
-	else:
-		av.append(deff2)
-
-plt.figure()
-plt.plot(r90eff,deff,'r.')
-plt.plot(bcenters,av,'ks')
-plt.xlabel('R90 [arcsec]')
-plt.ylabel('Distance [arcsec]')
-plt.tight_layout()
-plt.savefig(wd+'cdwfs_dist-r90.pdf',format='pdf')
-#plt.show()
-
-sys.exit()
-'''
-w=open(wd+'cdwfs_'+band+'_cat1_sim_unmatched.reg','w')
-w2=open(wd+'cdwfs_'+band+'_cat1_sim_matched.dat','w')
-unmatched=0
-blendings=0
-cts=[]
-for i in range(len(ra_d)):
-	kenter_source=[ra_d[i],dec_d[i]]
-	match_rad=1.1*r90[i]
-	found=0
-	counterparts=[]
-	at_least_one=False
-	count=0
+	elif simfolder == 'sim_indep_new/':
+		(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])
 	
-	delta = 0.014 #(0.028 ~100")
-	ra_cdwfs_filt=ra_cdwfs[(ra_cdwfs>=ra_d[i]-delta) & (ra_cdwfs<=ra_d[i]+delta) & (dec_cdwfs>=dec_d[i]-delta) & (dec_cdwfs<=dec_d[i]+delta)]
-	dec_cdwfs_filt=dec_cdwfs[(ra_cdwfs>=ra_d[i]-delta) & (ra_cdwfs<=ra_d[i]+delta) & (dec_cdwfs>=dec_d[i]-delta) & (dec_cdwfs<=dec_d[i]+delta)]
-	flux_cdwfs_filt=flux_cdwfs[(ra_cdwfs>=ra_d[i]-delta) & (ra_cdwfs<=ra_d[i]+delta) & (dec_cdwfs>=dec_d[i]-delta) & (dec_cdwfs<=dec_d[i]+delta)]
+	'''
+	(flux_cdwfs,ra_cdwfs,dec_cdwfs,gamma_cdwfs)=np.genfromtxt(wd+'poiss_rand_lehmer_newgamma_filtered.dat',unpack=True,skip_header=1,usecols=[0,1,2,3])
+	for m in range(len(gamma_cdwfs)):
+		if band=='soft':
+			flux_ratio=fluxinterp_s[xvals==gamma_cdwfs[m]]
+			flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
+		elif band=='hard':
+			flux_ratio=1.-fluxinterp_s[xvals==gamma_cdwfs[m]]
+			flux_cdwfs[m]=flux_ratio*flux_cdwfs[m]
+	'''
+	input.append(flux_cdwfs)
+	
+	# Assuming one fixed Gamma=1.4
+	#if band=='soft':
+	#	flux_cdwfs=0.33*flux_cdwfs
+	#	# Gamma =1.8
+	#	#flux_cdwfs=flux_cdwfs*4.521E-01
+	#elif band=='hard':
+	#	flux_cdwfs=0.67*flux_cdwfs
+	#	#flux_cdwfs=flux_cdwfs*5.479E-01
 
-	counterparts=[]
-	for j in range(len(ra_cdwfs_filt)):
-		cdwfs_source=[ra_cdwfs_filt[j],dec_cdwfs_filt[j]]
-		d=distance(kenter_source,cdwfs_source)
-		if d <= match_rad: #found a match
-			if found==0: #it's the first
-				if flux_d[i]/flux_cdwfs_filt[j] < 10.: #and the flux ratio is less than a factor of 10
+	# Sort them to start from the bright ones
+	ra_cdwfs=ra_cdwfs[::-1]
+	dec_cdwfs=dec_cdwfs[::-1]
+	flux_cdwfs=flux_cdwfs[::-1]
+	
+	unmatched,blendings=0,0
+	newpool=pool
+
+	r90eff,deff=[],[]
+	for i in range(len(ra_cdwfs)):
+		input_source=[ra_cdwfs[i],dec_cdwfs[i]]
+	
+		found=0
+		counterparts=[]
+		count=0
+
+		delta = 0.0056 #(0.028 ~100")
+		ra_d_filt=newpool[:,0][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		dec_d_filt=newpool[:,1][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		flux_d_filt=newpool[:,3][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		r90_d_filt=newpool[:,2][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		prob_d_filt=newpool[:,4][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		tot_d_filt=newpool[:,5][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		bkg_d_filt=newpool[:,6][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		exp_d_filt=newpool[:,7][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		cr_d_filt=newpool[:,8][(newpool[:,0]>=ra_cdwfs[i]-delta) & (newpool[:,0]<=ra_cdwfs[i]+delta) & (newpool[:,1]>=dec_cdwfs[i]-delta) & (newpool[:,1]<=dec_cdwfs[i]+delta)]
+		counterparts,probabilities,distances,mat_rad,counts,countsbkg,exposures,countrates=[],[],[],[],[],[],[],[]
+		for j in range(len(ra_d_filt)):
+			cdwfs_source=[ra_d_filt[j],dec_d_filt[j]]
+			match_rad=1.1*r90_d_filt[j]
+			d=distance(input_source,cdwfs_source)
+			if d <= match_rad: #found a match
+				if found==0: #it's the first
 					found=1
-					#flux_inp.append(flux_cdwfs_filt[j])
-					#flux_out.append(flux_d[i])
-					counterparts.append(flux_cdwfs_filt[j])
-					w2.write(str(ra_d[i])+' \t '+str(dec_d[i])+' \t '+str(prob[i])+' \t '+str(flux_cdwfs_filt[j])+' \t '+str(flux_d[i])+' \t '+str(d)+' \n')
-					at_least_one=True
-			else: #it's not the first match	
-				if flux_d[i]/flux_cdwfs_filt[j] < 10.: #and the flux ratio is less than a factor of 10
+					counterparts.append(flux_d_filt[j])
+					probabilities.append(prob_d_filt[j])
+					distances.append(d)
+					mat_rad.append(match_rad)
+					counts.append(tot_d_filt[j])
+					countsbkg.append(bkg_d_filt[j])
+					exposures.append(exp_d_filt[j])
+					countrates.append(cr_d_filt[j])
+				else: #it's not the first match	
 					count=count+2
 					blendings=blendings+1
-					counterparts.append(flux_cdwfs_filt[j])
-					#print('Found the '+str(count)+'nd/rd/th counterpart to '+str(kenter_source))
-	if found == 1:
-		if len(counterparts) == 1:
-			flux_inp.append(counterparts[0])
-			flux_out.append(flux_d[i])
+					counterparts.append(flux_d_filt[j])
+					probabilities.append(prob_d_filt[j])
+					distances.append(d)
+					mat_rad.append(match_rad)
+					counts.append(tot_d_filt[j])
+					countsbkg.append(bkg_d_filt[j])
+					exposures.append(exp_d_filt[j])
+					countrates.append(cr_d_filt[j])
+		if found == 1:
+			if len(counterparts) == 1:
+				flux_inp.append(flux_cdwfs[i])
+				flux_out.append(counterparts[0])
+				r90eff.append(mat_rad[0])
+				deff.append(distances[0])
+				tots.append(counts[0])
+				bkgs.append(countsbkg[0])
+				expos.append(exposures[0])
+				crs.append(countrates[0])
+				#print(len(newpool[:,0]))
+				#print(len(newpool[newpool[:,3]==counterparts[0]]),newpool[newpool[:,3]==counterparts[0]])
+				newpool=np.delete(newpool,np.where(newpool[:,3]==counterparts[0]),0)
+				#print(len(newpool[:,0]))
+			else:
+				counterparts=np.array(counterparts)
+				probabilities=np.array(probabilities)
+				mat_rad=np.array(mat_rad)
+				distances=np.array(distances)
+				counts=np.array(counts)
+				countsbkg=np.array(countsbkg)
+				exposures=np.array(exposures)
+				countrates=np.array(countrates)
+				
+				flux_inp.append(flux_cdwfs[i])
+				flux_out.append(counterparts[probabilities==np.min(probabilities)][0])
+				r90eff.append(mat_rad[probabilities==np.min(probabilities)][0])
+				deff.append(distances[probabilities==np.min(probabilities)][0])
+				tots.append(counts[probabilities==np.min(probabilities)][0])
+				bkgs.append(countsbkg[probabilities==np.min(probabilities)][0])
+				expos.append(exposures[probabilities==np.min(probabilities)][0])
+				crs.append(countrates[probabilities==np.min(probabilities)][0])
+#print(len(newpool[newpool[:,3]==counterparts[probabilities==np.min(probabilities)]]),newpool[newpool[:,3]==counterparts[probabilities==np.min(probabilities)]])
+				#print(len(newpool[:,0]))
+				newpool=np.delete(newpool,np.where(newpool[:,3]==counterparts[probabilities==np.min(probabilities)]),0)
+
+	
 		else:
-			flux_inp.append(np.max(counterparts))
-			flux_out.append(flux_d[i])
+			unmatched=unmatched+1
+	
+	#print(len(ra_cdwfs), 'in input')
+	#print(len(flux_inp), 'matched')
+	#print(unmatched, 'unmatched')
+	#print(blendings,' blendings')
+
+	'''
+	n,be=np.histogram(deff,bins=25)
+	be2=list((be[i+1]+be[i])/2. for i in range(len(be)-1))
+	nsum=np.cumsum(n)/float(np.sum(n))
+
+	f,(ax1,ax2)=plt.subplots(2,1,sharex=True)
+	ax1.hist(deff,bins=25)
+	ax1.set_ylabel('N')
+	ax2.plot(be2,nsum,'b-')
+	ax2.set_ylabel('Cumulative fraction')
+	ax2.set_xlabel('Distance [arcsec]')
+	plt.show()
+	#plt.savefig(wd+'cdwfs_dist-cum.pdf',format='pdf')
+	'''
+
+	'''
+	r90eff=np.array(r90eff)
+	deff=np.array(deff)
+
+	n,bedges=np.histogram(r90eff,bins=15)
+	bcenters=list((bedges[i+1]+bedges[i])/2. for i in range(len(bedges)-1))
+	av=[]
+	for j in range(len(bcenters)):
+		flag=[]
+		for i in range(len(deff)):
+			if (r90eff[i] > bedges[j] and r90eff[i] < bedges[j+1]): 
+				flag.append(1)
+			else:
+				flag.append(0)
+		flag=np.array(flag)
+		deff2=deff[flag==1]
+		if len(deff2) > 1:
+			av.append(np.median(deff2))
+		else:
+			av.append(deff2)
+
+	plt.figure()
+	plt.plot(r90eff,deff,'r.')
+	plt.plot(bcenters,av,'ks')
+	plt.xlabel('R90 [arcsec]')
+	plt.ylabel('Distance [arcsec]')
+	plt.tight_layout()
+	#plt.savefig(wd+'cdwfs_dist-r90.pdf',format='pdf')
+	plt.show()
+	'''
 		
-	else:
-		unmatched=unmatched+1
-		w.write('circle('+str(ra_d[i])+'d, '+str(dec_d[i])+'d, 10\") #width=2 color=cyan \n')
-		cts.append(cts_full[i])
-		#print(ra_k[i],dec_k[i],prob[i])
-		#if cts_full[i] > 30.0:
-			#print(ra_k[i],dec_k[i])
-
-w.close()
-w2.close()
 t_out=time.time()
-print(len(ra_d), 'detected')
-print(len(flux_inp), 'matched')
-print(unmatched, 'unmatched')
-print(blendings,' blendings')
-print(float(t_out-t_in),' seconds for the match.')
-'''
+print(round(float(t_out-t_in)/60.,1),' minutes for the match.')
+##### End of matching #####
+###########################
 
+
+bins00=np.logspace(np.log10(5e-17),np.log10(1e-12),51)
+centers00=list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
+ds00=list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
+centers00=np.array(centers00)
+ds00=np.array(ds00)
+area=9.3 # total area of the survey 
+
+# Flux-flux plot
+'''
+flux_out=np.array(flux_out)
+x=np.log10(flux_inp)
+y=np.log10(flux_out.astype(np.float64))
+k = gaussian_kde(np.vstack([x, y]))
+xi, yi = np.mgrid[x.min():x.max():x.size**0.5*1j,y.min():y.max():y.size**0.5*1j]
+zi = k(np.vstack([xi.flatten(), yi.flatten()]))
+
+#set zi to 0-1 scale
+zi = (zi-zi.min())/(zi.max() - zi.min())
+zi =zi.reshape(xi.shape)
+#plt.imshow(zi,origin='lower')
+#plt.show()
 
 plt.figure()
-plt.plot(flux_inp,flux_out,'k.')
-plt.xscale('log')
-plt.yscale('log')
-plt.show()
+#set up plot
+origin = 'lower'
+levels = [0.1,0.25,0.5,0.68,0.95,0.975,1]
 
-bins=np.logspace(np.log10(5e-17),np.log10(1e-12),50)
-a,b=np.histogram(flux_cdwfs,bins=bins)
-bincenters=list((b[i+1]+b[i])/2. for i in range(len(b)-1))
-#plt.figure()
-#plt.plot(bincenters,a,'go')
+CS = plt.contour(xi, yi, zi,levels = levels,
+			  colors=('k',),
+			  linewidths=(1,),
+			  origin=origin)
+
+plt.clabel(CS, fmt='%.3f', colors='b', fontsize=8)
+plt.plot(np.linspace(-16,-12,20),np.linspace(-16,-12,20),'r--')
+plt.scatter(x,y,color='gray',marker='.',zorder=-1,alpha=0.8)
 #plt.xscale('log')
 #plt.yscale('log')
-#plt.show()
-#sys.exit()
-a2,b2=np.histogram(flux_inp,bins=bins)
-
-a=a/1.
-a2=a2/1.
-
-cum1=np.array(list(reversed(np.cumsum(list(reversed(a))))))
-cum2=np.array(list(reversed(np.cumsum(list(reversed(a2))))))
-
-cum=cum2/cum1
-#cum[cum>1.]=1.
-
-w=open(wd+'cdwfs_completeness.dat','w')
-for i in range(len(bincenters)):
-	w.write(str(bincenters[i])+' \t '+str(cum[i])+'\n')
-w.close()
-
-plt.figure()
-plt.plot(bincenters,cum,'-',color='green')
-plt.xscale('log')
-plt.xlabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^(-1)$]')
-plt.ylabel(r'Completeness')
-plt.grid()
-#plt.savefig(wd+'cdwfs_completeness.pdf',format='pdf')
+plt.xlabel('Input flux')
+plt.ylabel('Output flux')
 plt.show()
-
-#sys.exit()
-
-#rat=[]
-#for i in range(len(a)):
-#	if float(a[i]) != 0.:
-#		rat.append(float(a2[i])/float(a[i]))
-#	else:
-#		rat.append(1)
-#rat=np.array(rat)*9.306
-#cum=np.cumsum(rat)/np.sum(rat)
-#cum=np.array(list(reversed(np.cumsum(list(reversed(rat))))))
-
-#(f,k)=np.genfromtxt(wd+'kenter05_sens_05-7keV.dat',unpack=True)
-#k=k/np.max(k)
-
-
-
-rebin_factor=4.
-#ecf=1.825E-11 # gamma=1.8 
-ecf=1.847E-11 # gamma=1.4
-scale=(0.492/3600.)*rebin_factor #pixel size in deg
-arcsec2pix=scale*3600
-
-sensb=fits.open(wd+'cdwfs_broad_sens_1.4Cy18.fits')
-sens2b=sensb[0].data
-sens2b=sens2b[sens2b>0]
-print('Here.')
-
-binsb=np.logspace(np.log10(min(sens2b)),np.log10(1e-13),100)
-ab,bb=np.histogram(sens2b,bins=binsb)
-areab=ab*scale**2
-centersb=list((binsb[i+1]+binsb[i])/2. for i in range(len(binsb)-1))
-cumb=np.cumsum(areab)
-
-sensc=fits.open(wd+'cdwfs_broad_sens_r90.fits')
-sens2c=sensc[0].data
-sens2c=sens2c[sens2c>0]
-print('Here.')
-
-binsc=np.logspace(np.log10(min(sens2c)),np.log10(1e-13),100)
-ac,bc=np.histogram(sens2c,bins=binsc)
-areac=ac*scale**2
-centersc=list((binsc[i+1]+binsc[i])/2. for i in range(len(binsc)-1))
-cumc=np.cumsum(areac)
-
-cum2=cum*np.max(cumb)
-
-w=open(wd+'skycov.dat','w')
-for k in range(len(bincenters)):
-	w.write(str(bincenters[k])+' \t '+str(cum2[k])+'\n')
-w.close()
-
-plt.figure()
-plt.plot(bincenters,cum2,'-',color='green',label='Completeness rescaled')
-plt.plot(centersb,cumb,'b-',label='Sensitivity, R50')
-plt.plot(centersc,cumc,'b--',label='Sensitivity, R90')
-#plt.plot(f,k,'k--')
-plt.xscale('log')
-plt.xlabel(r'0.5-7 keV flux [erg cm$^{-2}$ s$^(-1)$]')
-plt.ylabel(r'Area [deg$^2$]')
-plt.legend()
-plt.tight_layout()
-#plt.yscale('log')
-plt.show()
-#plt.savefig(wd+'cdwfs_sensitivity.pdf',format='pdf')
-sys.exit()
-
 '''
-------------
-(flux_sim,ra_sim,dec_sim)=np.genfromtxt(wd+'poiss_rand_lehmerx20_filtered.dat',unpack=True,skip_header=1)
-plt.figure()
-for band in ['broad','soft','hard']:
-	if band=='soft':
-		flux_sim=0.33*flux_sim
-	elif band=='hard':
-		flux_sim=0.67*flux_sim
 
-	(flux_inp,flux_out)=np.genfromtxt(wd+'sim_all/cdwfs_'+band+'_sim_poiss_matched.dat',unpack=True,usecols=[3,4])
+# INPUT LOGNLOGS
+quante,bincenters_s=np.histogram(input,bins=bins00)
+quante_perarea=quante/(area*nsim)
+quante_perarea_perflux=list(quante_perarea[i]/(bins00[i+1]-bins00[i]) for i in range(len(bins00)-1))
+quante_perarea_perflux=np.array(quante_perarea_perflux)
+ncum_in=list(reversed(np.cumsum(list(reversed(quante_perarea)))))
 
-	bins=np.logspace(np.log10(5e-17),np.log10(9e-13),20)
-	a,b=np.histogram(flux_sim,bins=bins)
-	bincenters=list((b[i+1]+b[i])/2. for i in range(len(b)-1))
+# OUTPUT LOGNLOGS, USING FIXED AREA AND TRUE, INPUT FLUXES
+quante_out,bincenters_s=np.histogram(flux_inp,bins=bins00) # Use the "True" fluxes or the observed ones?
+quante_out_perarea=quante_out/(area*nsim)
+quante_out_perarea_perflux=list(quante_out_perarea[i]/(bins00[i+1]-bins00[i]) for i in range(len(bins00)-1))
+quante_out_perarea_perflux=np.array(quante_out_perarea_perflux)
+ncum_out=list(reversed(np.cumsum(list(reversed(quante_out_perarea)))))
 
-	a2,b2=np.histogram(flux_inp,bins=bins)
-	rat=[]
-	#print(a)
-	#print(a2)
-	for i in range(len(a)):
-		if float(a[i]) != 0.:
-			rat.append(float(a2[i])/float(a[i]))
-		else:
-			rat.append(1)
-	print(band,rat)
-	
-	plt.plot(bincenters,rat,'k-',label=band)
-	if band=='broad':
-		plt.xlabel('0.5-7 keV Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-	elif band=='soft':
-		plt.xlabel('0.5-2 keV Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-	else:
-		plt.xlabel('2-7 keV Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+# Take the sensitivity made with Georgakakis method (sens.py code)
+if simfolder == 'sim_all_FINAL/':
+	fl2,ar2=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_1.8.dat',unpack=True)
+elif (simfolder == 'sim_indep/') or (simfolder == 'sim_newgamma/'):
+	fl2,ar2=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis.dat',unpack=True)
+elif simfolder == 'sim_all_new/':
+	fl2,ar2=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_cy18.dat',unpack=True)
+	ar2_norm=ar2/np.max(ar2)
 
-plt.xscale('log')
-plt.ylabel('Completeness',fontsize=13)
-#plt.savefig(wd+'cdwfs_'+band+'_completeness.pdf',format='pdf',dpi=1000)
-plt.show()
-sys.exit()
-
-band='hard'
-
-(flux_sim,ra_sim,dec_sim)=np.genfromtxt(wd+'poiss_rand_lehmerx20_filtered.dat',unpack=True,skip_header=1)
-if band=='soft':
-	flux_sim=0.33*flux_sim
-elif band=='hard':
-	flux_sim=0.67*flux_sim
-
-(ra,dec,flux_inp,flux_out)=np.genfromtxt(wd+'sim_all/cdwfs_'+band+'_sim_poiss_matched.dat',unpack=True,usecols=[0,1,3,4])
-
-bins=np.logspace(np.log10(5e-17),np.log10(9e-13),20)
-a,b=np.histogram(flux_sim,bins=bins)
-bincenters=list((b[i+1]+b[i])/2. for i in range(len(b)-1))
-
-a2,b2=np.histogram(flux_inp,bins=bins)
-
-print(a)
-print(a2)
-a2[-4]=40
-a2[-2]=10
-for j in range(len(flux_inp)):
-	if (flux_inp[j] <= 6e-13 and flux_inp[j] >=4e-13):
-		print(ra[j],dec[j],flux_inp[j],flux_out[j],flux_inp[j]/flux_out[j])
-
-rat=list(float(a2[i])/float(a[i]) for i in range(len(a)))
-#print(rat)
-
-plt.figure()
-plt.plot(bincenters,rat,'k-')
-plt.xscale('log')
-if band=='broad':
-	plt.xlabel('0.5-7 keV Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-elif band=='soft':
-	plt.xlabel('0.5-2 keV Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
+#fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90.dat',unpack=True)
+if band != 'hard':
+	fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_interpolation_sens.dat',unpack=True)
+	#fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90.dat',unpack=True)
 else:
-	plt.xlabel('2-7 keV Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-plt.ylabel('Completeness',fontsize=13)
-#plt.savefig(wd+'cdwfs_'+band+'_completeness.pdf',format='pdf',dpi=1000)
-plt.show()
-'''
+	fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90.dat',unpack=True)
+	
+# Make the sensitivity plots
+ratio=np.array(ncum_out)/np.array(ncum_in)*area
+num=quante_out
+den=quante
+ratio3=(num/den)*area
+enum=np.sqrt(num)*area
+eden=np.sqrt(den)*area
+eratio=np.sqrt((enum/den)**2+(ratio3*eden/den)**2)
 
-color='black'
-plt.figure()
-for band in ['broad','soft','hard']:
-	(flux_sim,ra_sim,dec_sim)=np.genfromtxt(wd+'poiss_rand_lehmerx20_filtered.dat',unpack=True,skip_header=1)
-	if band=='soft':
-		color='blue'
-		flux_sim=0.33*flux_sim
-	elif band=='hard':
-		color='red'
-		flux_sim=0.67*flux_sim
+ratio3[np.isnan(ratio3)]=9.3
 
-	(flux_inp,flux_out)=np.genfromtxt(wd+'sim_all/cdwfs_'+band+'_sim_poiss_matched.dat',unpack=True,usecols=[3,4])
+f,ax1=plt.subplots(1,1)
+ax1.plot(centers00,ratio,'g-',linewidth=2,label='Cum(matched)/Cum(input)')
+ax1.plot(centers00,ratio3,'b*',markersize=15,label='matched/input')
+#ax1.errorbar(centers00,ratio3,yerr=eratio,color='blue',marker='*',ms=15,linewidth=1,label='matched/input')
+#ax1.plot(fl2,ar2,'r--',linewidth=2,label='Following Georgakakis, R50')
+ax1.plot(fl3,ar3,'k--',linewidth=2,label='Following Georgakakis')
+ax1.set_xlabel(r'Flux (erg cm$^{-2}$ s$^{-1}$)',fontsize=15)
+ax1.set_ylabel(r'Area (deg$^2$)',fontsize=15)
+ax1.tick_params(axis='both',labelsize=13)
+ax1.set_xscale('log')
+ax1.set_yscale('log')
+ax1.axis([5e-17,5e-13,1e-3,10])
 
-	bins=np.logspace(np.log10(5e-17),np.log10(9e-13),20)
-	a,b=np.histogram(flux_sim,bins=bins)
-	bincenters=list((b[i+1]+b[i])/2. for i in range(len(b)-1))
-
-	a2,b2=np.histogram(flux_inp,bins=bins)
-	if band=='hard':
-		a2[-4]=40
-		a2[-2]=10
-	rat=[]
-	#print(a)
-	#print(a2)
-	for i in range(len(a)):
-		if float(a[i]) != 0.:
-			rat.append(float(a2[i])/float(a[i]))
-		else:
-			rat.append(1)
-	#print(band,rat)
-	rat=np.array(rat)*9.306
-	#cum=np.cumsum(rat)/np.sum(rat)*9.306
-	plt.plot(bincenters,rat,'-',color=color,label=band)
-
-(f,k)=np.genfromtxt(wd+'kenter05_sens_05-7keV.dat',unpack=True)
-
-plt.plot(f,k,'k--')
-plt.xlabel('Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-plt.xscale('log')
-plt.ylabel('Area [deg2]',fontsize=13)
 plt.legend()
 plt.tight_layout()
-plt.savefig(wd+'cdwfs_all_completeness.pdf',format='pdf',dpi=1000)
-#plt.show()
-sys.exit()
+plt.show()
 
-x=np.linspace(1e-16,1e-12,100)
+'''
+if simfolder == 'sim_indep/':
+	w=open(wd+'cdwfs_'+band+'_sens_sim_indep.dat','w')
+elif simfolder == 'sim_all_FINAL/':
+	w=open(wd+'cdwfs_'+band+'_sens_sim_all_FINAL.dat','w')
+elif simfolder == 'sim_newgamma/':
+	w=open(wd+'cdwfs_'+band+'_sens_sim_newgamma.dat','w')
+elif simfolder == 'sim_all_new/':
+	w=open(wd+'cdwfs_'+band+'_sens_sim_all_new.dat','w')
+'''
+#w=open(wd+'cdwfs_'+band+'_sens_sim_indep.dat','w')
+#for i in range(len(ratio3)):
+#	w.write(str(centers00[i])+' \t '+str(ratio3[i])+'\n')
+#w.close()
+
+#######################################################
+# OUTPUT LOGNLOGS, CORRECTING FOR SENSITIVITY
+
+# Use the Georgakakis sens, but need to interpolate - standard method
+sens=np.interp(centers00,fl3,ar3)
+
+quante_out_perarea_corr=quante_out/(sens*nsim)
+quante_out_perarea_perflux_corr=list(quante_out_perarea_corr[i]/(bins00[i+1]-bins00[i]) for i in range(len(bins00)-1))
+ncum_out_corr=list(reversed(np.cumsum(list(reversed(quante_out_perarea_corr)))))
+
+# Use the Georgakakis sens AND methodology to correct for flux uncertainty (and Eddington
+# bias)
+# Assume I know beta (b1=-1.34, b2=-2.35) for the full band
+#b1=-1.34
+#b2=-2.35
+#fb=8.1e-15
+
+def dnds(fx,params):
+	
+	b1,b2,fb = params[0],params[1],params[2]
+	k,fref = 1e16,1e-14
+		
+	k1 = k*(fb/fref)**(b1-b2)
+	
+	if type(fx) == float:
+		if fx <= fb:
+			return k*(fx/fref)**b1
+		else:
+			return k1*(fx/fref)**b2
+	elif (type(fx) == list)	or (type(fx) == np.ndarray):
+		if type(fx) == list:
+			fx = np.array(fx)
+		aux = k*(fx/fref)**b1
+		aux[fx > fb] = k1*(fx[fx > fb]/fref)**b2
+		return aux
+
+'''
+########
+def func(params):
+	fx = centers00
+	k,b1,b2,fb=params[0],params[1],params[2],params[3]
+	fref=1e-14	
+	k1 = k*(fb/fref)**(b1-b2)
+	
+	if type(fx) == list:
+		fx = np.array(fx)
+	aux = k*(fx/fref)**b1
+	aux[fx > fb] = k1*(fx[fx > fb]/fref)**b2
+	return aux
+
+
+#p0=np.logspace(np.log10(4e11),np.log10(4e20),40)
+p0=562e14
+p1=np.linspace(-2,-1,11)
+#p1=-1.34
+#p2=np.linspace(-3,-2,40)
+p2=-2.35
+#p3=8.1e-15
+p3=np.logspace(np.log10(1e-15),np.log10(1e-13),11)
+cmap = mpl.cm.autumn
 plt.figure()
-plt.plot(flux_inp,flux_out,'r.')
-plt.plot(x,x,'k--')
+for h in range(len(p3)):
+	res=[]
+	for k in range(len(p1)):
+	
+		guess=[p0,p1[k],p2,p3[h]]
+		lnpconi=[]
+		for i in range(len(expos)):
+			ecf=flux_out[i]/crs[i]
+			T=bkgs[i]+(centers00/ecf)*expos[i]*0.9
+		
+			pb=scipy.stats.distributions.poisson.pmf(tots[i],T)*func(guess)*ds00
+			pconi = np.sum(pb)/np.sum(func(guess)*sens*ds00)
+		
+			lnpconi.append(-np.log(pconi))
+	
+		lnpconi=np.array(lnpconi)
+		res.append(np.sum(lnpconi))
+
+
+	plt.plot(p1,res,linestyle='-',color=cmap(h / float(len(p3))),label=str(p3[h]))
+
+plt.axvline(x=-1.34)
+#plt.xscale('log')
+plt.legend()
+plt.show()
+
+sys.exit()
+########
+'''
+
+tin=time.time()
+guess=[-1.3,-2.5,6e-15]
+def func(params):
+	fx = centers00
+	k,b1,b2,fb=5e16,params[0],params[1],params[2]
+	fref=1e-14
+	k1 = k*(fb/fref)**(b1-b2)
+	
+	if type(fx) == list:
+		fx = np.array(fx)
+	aux = k*(fx/fref)**b1
+	aux[fx > fb] = k1*(fx[fx > fb]/fref)**b2
+	
+	lnpconi=[]
+	for i in range(len(expos)):
+		ecf=flux_out[i]/crs[i]
+		T=bkgs[i]+(fx/ecf)*expos[i]*0.9
+		
+		pb=scipy.stats.distributions.poisson.pmf(tots[i],T)*aux*ds00
+		pconi = np.sum(pb)/np.sum(aux*sens*ds00)
+		
+		lnpconi.append(-np.log(pconi))
+	
+	lnpconi=np.array(lnpconi)
+	return np.sum(lnpconi)
+
+res=minimize(func, guess, method='nelder-mead')
+
+if band == 'broad':
+	inppars=[-1.34,-2.35,8.1e-15] # broad Lehmer's dN/dS params
+elif band == 'soft':
+	inppars=[-1.49,-2.48,6.0e-15] # soft
+else:
+	inppars=[-1.32,-2.55,6.4e-15] # hard
+
+print(round(float(time.time()-tin)/60.,1),' minutes for the -likelihood minimization.')
+print('input:',inppars)
+print('guess:',guess)
+print('output:',res.x)
+
+#H=nd.Hessian(func)(res.x)
+#print(H)
+
+pars=res.x
+part0=np.zeros_like(centers00)
+part1=np.zeros_like(centers00)
+
+for i in range(len(expos)):
+	if (expos[i] > 0) and (expos[i] < 4e7):
+		
+		intrinsic_flux=flux_inp[i]
+		observed_flux=flux_out[i]
+		
+		ecf=flux_out[i]/crs[i]
+		# Compute the PDFs
+		T=bkgs[i]+(centers00/ecf)*expos[i]*0.9
+		prob1=scipy.stats.distributions.poisson.pmf(tots[i],T)*(dnds(centers00,pars)*ds00)
+		
+		# Normalize them (this step should be correct)
+		prob1=prob1/np.sum(prob1)
+	
+		# Store in the sum
+		part1=part1+prob1
+
+print('I cycled on',len(expos),'sources, and the total number of sources in the sum is',round(np.sum(part1),0))
+
+# Part 0/1 contains the sum of the PDFs
+part1b=part1/(sens*nsim)
+
+#part0c=list(part0b[i]/(bins00[i+1]-bins00[i]) for i in range(len(bins00)-1))
+part1c=list(part1b[i]/(bins00[i+1]-bins00[i]) for i in range(len(bins00)-1))
+
+# If I first cumulate the PDFs and THEN divide for the CUMULATED sensitivity
+cumsens=ratio # This is the "old" flatter curve
+cumsens[-1]=1.
+cumsens=np.array(cumsens)
+
+#cumpart0=list(reversed(np.cumsum(list(reversed(part0)))))
+#cumpart0=np.array(cumpart0)
+#cumpart0=cumpart0/(cumsens*nsim)
+
+#cumpart1=list(reversed(np.cumsum(list(reversed(part1)))))
+cumpart1=list(reversed(np.cumsum(list(reversed(part1b)))))
+
+#######################################################
+
+'''
+print('dN/dS with Georgakakis method, no correction fx^beta:')
+print(part0c)
+print('dN/dS in input:')
+print(quante_perarea_perflux)
+print('Their ratio is:')
+RATIO=quante_perarea_perflux/part0c
+for i in range(len(RATIO)):
+	print(centers00[i],RATIO[i])
+
+plt.figure()
+plt.plot(centers00,RATIO,'ro')
+plt.axhline(y=1)
+plt.axvline(x=1e-14)
 plt.xscale('log')
 plt.yscale('log')
-if band=='broad':
-	plt.xlabel('0.5-7 keV Input Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-	plt.ylabel('0.5-7 keV Output Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-elif band=='soft':
-	plt.xlabel('0.5-2 keV Input Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-	plt.ylabel('0.5-2 keV Output Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-else:
-	plt.xlabel('2-7 keV Input Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-	plt.ylabel('2-7 keV Output Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=13)
-#plt.hist(cts,bins=100)
 plt.show()
-#plt.savefig(wd+'cdwfs_'+band+'_Fin-Fout.pdf',format='pdf',dpi=1000)
+'''
+
+f,(ax1,ax2)=plt.subplots(2,1,sharex=True,figsize=[7,9])
+#ax1.plot(centers00,ncum_out,'r-',linewidth=2,label='Using input fluxes, fixed area')
+#ax1.plot(centers00,ncum_out_corr,'b-',linewidth=2,label='Using input fluxes, correcting for sens')
+#ax1.plot(centers00,cumpart0,'g-',linewidth=2,label=r'Georgakakis method, NO fx$^{\beta}$')
+ax1.plot(centers00,cumpart1,'cs',linewidth=2,label=r'Georgakakis method, with fx$^{\beta}$')
+ax1.plot(centers00,ncum_in,'k--',linewidth=3, label='In input file')
+ax1.set_ylabel(r'N(>S) (deg$^{-2}$)',fontsize=13)
+ax1.set_xscale('log')
+ax1.set_yscale('log')
+ax1.axis([5e-17,2e-12,1,2e4])
+ax1.tick_params(axis='both',which='both',top=True,right=True,direction='in',labelsize=12)
+
+#ax2.plot(centers00,quante_out_perarea_perflux,'r*',linewidth=2,label='Using input fluxes, fixed area')
+#ax2.plot(centers00,quante_out_perarea_perflux_corr,'bs',linewidth=2,label='Using input fluxes, correcting for sens')
+#ax2.plot(centers00,part0c,'gs',linewidth=2,label=r'Georgakakis method, NO fx$^{\beta}$')
+ax2.plot(centers00,part1c,'cs',linewidth=2,label=r'Georgakakis method, with fx$^{\beta}$')
+ax2.plot(centers00,quante_perarea_perflux,'ko',linewidth=2, label='In input file')
+#ax2.plot(np.logspace(-16,-14,20),(np.logspace(-16,-14,20)/1e-14)**(-1.34)*560e14,'g--')
+#ax2.plot(np.logspace(-14,-12,20),(np.logspace(-14,-12,20)/1e-14)**(-2.35)*560e14,'c--')
+ax2.set_ylabel(r'dN/dS (deg$^{-2}$ [erg cm$^{-2}$ s$^{-1}$]$^{1.5}$)',fontsize=13)
+ax2.set_xlabel(r'S (erg cm$^{-2}$ s$^{-1}$)',fontsize=13)
+ax2.set_xscale('log')
+ax2.set_yscale('log')
+ax2.axis([5e-17,2e-12,1e11,1e22])
+#ax2.axis([5e-17,2e-12,5e-22,2e-18])
+ax2.tick_params(axis='both',which='both',top=True,right=True,direction='in',labelsize=12)
+
+ax1.legend()
+ax2.legend()
+plt.subplots_adjust(hspace=0)
+plt.show()

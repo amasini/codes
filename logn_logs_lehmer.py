@@ -14,6 +14,31 @@ def gauss(x,mu,sigma):
 	return g
 
 #Lehmer+12 CDFS dn/ds for AGN
+def dnds(fx,band):
+	if band == 'broad':
+		k,b1,b2,fb,fref = 562.2e14,-1.34,-2.35,8.1e-15,1e-14
+	elif band == 'soft':
+		k,b1,b2,fb,fref = 169.56e14,-1.49,-2.48,6.0e-15,1e-14
+	elif band == 'hard':
+		k,b1,b2,fb,fref = 573.13e14,-1.32,-2.55,6.4e-15,1e-14
+	else:
+		print('Band not recognized. Exit')
+		sys.exit()
+		
+	k1 = k*(fb/fref)**(b1-b2)
+	
+	if type(fx) == float:
+		if fx <= fb:
+			return k*(fx/fref)**b1
+		else:
+			return k1*(fx/fref)**b2
+	elif (type(fx) == list)	or (type(fx) == np.ndarray):
+		if type(fx) == list:
+			fx = np.array(fx)
+		aux = k*(fx/fref)**b1
+		aux[fx > fb] = k1*(fx[fx > fb]/fref)**b2
+		return aux
+'''		
 def dnds(s):
     n=[]
     k,fb,b1,b2=562.20,8.1e-15,1.34,2.35 #full band Lehmer
@@ -27,7 +52,7 @@ def dnds(s):
         else:
             n.append(k*1e14*(fb/1.e-14)**(b2-b1)*(s[i]/1.e-14)**(-b2))
     return n
-
+'''
 def dnds_k(s): # logn-logs by Kenter+05 for Xbootes
     n=[]
     k,fb,b1,b2=674.64,8.1e-15,1.34,2.35 #full band Lehmer x1.2
@@ -89,14 +114,14 @@ flux=np.logspace(np.log10(5e-17),np.log10(1e-12),101) #this is the full band flu
 centers0=list((flux[i+1]+flux[i])/2 for i in range(0,len(flux)-1))
 
 #AGNs per unit flux per squared degree, in soft and hard bands
-dnds=dnds(centers0) #Lehmer
+dnds=dnds(centers0,'hard') #Lehmer
 dnds_k=dnds_k(centers0) #Kenter
 dnds_g=dnds_g(centers0) #Georgakakis
 	
 #Write file with sources
-w=open(wd+'poiss_rand_lehmer.reg','w')
-w2=open(wd+'poiss_rand_lehmer.dat','w')
-w2.write('Full flux \t RA \t DEC \t Gamma\n')
+w=open(wd+'poiss_rand_hard.reg','w')
+w2=open(wd+'poiss_rand_hard.dat','w')
+w2.write('Hard flux \t RA \t DEC \n')
 #choose rectangular area of 4x3.5 deg2 centered on the center of the field
 (minra,maxra)=(215.82,220.1)
 (minde,maxde)=(32.2,36.2)
@@ -124,23 +149,36 @@ for i in range(len(dnds)):
 			j=j+1
 			randra=np.random.uniform(minra,maxra)
 			w.write('circle('+str(randra)+'d,'+str(randdec)+'d,1\")\n')
-			#w2.write(str(flux[i])+'\t'+str(randra)+'\t'+str(randdec)+'\n')
-			random_gamma=np.random.choice(xvals, p=new)
-			w2.write(str(flux[i])+' \t '+str(randra)+' \t '+str(randdec)+' \t '+str(round(random_gamma,2))+'\n')
+			w2.write(str(flux[i])+'\t'+str(randra)+'\t'+str(randdec)+'\n')
+			#random_gamma=np.random.choice(xvals, p=new)
+			#w2.write(str(flux[i])+' \t '+str(randra)+' \t '+str(randdec)+' \t '+str(round(random_gamma,2))+'\n')
 w.close()
 w2.close()
 
+sys.exit()
+
 ##########################################################################
 #recover logn-logs of input sources written in poiss_rand.dat
-full_flux=np.genfromtxt(wd+'poiss_rand_lehmer.dat',skip_header=1,usecols=0)
+full_flux=np.genfromtxt(wd+'poiss_rand_lehmer_broad.dat',skip_header=1,usecols=0)
 bins00=np.logspace(np.log10(5e-17),np.log10(1e-12),101)
 centers00=list((bins00[i+1]+bins00[i])/2 for i in range(0,len(bins00)-1))
 
 quante,bincenters_s=np.histogram(full_flux,bins=bins00)
 
-quante_perarea=quante/area
+quante_perarea=quante/area # Here, area is larger than 9.3 deg2!
 
 ncum_in=list(reversed(np.cumsum(list(reversed(quante_perarea)))))
+
+#recover logn-logs of input sources written in poiss_rand_lehmer_filtered.dat
+full_flux=np.genfromtxt(wd+'poiss_rand_lehmer_filtered.dat',skip_header=1,usecols=0)
+bins00=np.logspace(np.log10(5e-17),np.log10(1e-12),101)
+centers00=list((bins00[i+1]+bins00[i])/2 for i in range(0,len(bins00)-1))
+
+quante,bincenters_s=np.histogram(full_flux,bins=bins00)
+area=9.3
+quante_perarea=quante/area
+
+ncum_in_2=list(reversed(np.cumsum(list(reversed(quante_perarea)))))
 ############################################################################
 
 #check the cumulatives
@@ -167,6 +205,7 @@ ax1.plot(centers0,ncum_k,'g-',linewidth=2,label='Lehmer+12 0.5-7 X1.2 keV')
 #ax1.plot(civano_f,civano_ns,'b*',ms=15,label=r'Civano+06 2-10 keV, $\Gamma=1.8$')
 #ax1.plot(centers0,ncum_b,'b-',linewidth=2,label='Brandt+01 0.5-2 keV')
 ax1.plot(centers00,ncum_in,'k--',linewidth=2, label='In input file')
+ax1.plot(centers00,ncum_in_2,'b--',linewidth=2, label='In input file, filtered')
 ax1.set_xlabel('S [cgs]')
 ax1.set_ylabel(r'N(>S) [deg$^-2$]')
 ax1.set_xscale('log')

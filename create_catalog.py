@@ -15,7 +15,7 @@ def distance(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat0.fits')
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat0_exp-psf.fits')
 raf=cat[1].data['RA_F']
 decf=cat[1].data['DEC_F']
 probf=cat[1].data['PROB_F']
@@ -66,17 +66,24 @@ e_crh_lo=cat[1].data['E_CR_H_-']
 fluxh=cat[1].data['FLUX_H']
 e_fluxh_up=cat[1].data['E_FLUX_H_+']
 e_fluxh_lo=cat[1].data['E_FLUX_H_-']
+
 #cutf,cuts,cuth=1.4e-2,1e-2,3.5e-3 # These are the probability cuts in F,S,H bands at 97% rel -> 9240 srcs
 #cutf,cuts,cuth=2e-4,2e-4,1e-4 # These are the probability cuts in F,S,H bands at 99% rel -> 7666 srcs
 #cutf,cuts,cuth=6e-5,1.4e-4,6e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7129 srcs
 
-cutf,cuts,cuth=7e-5,6e-4,4e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7338 srcs
+#cutf,cuts,cuth=7e-5,6e-4,4e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7338 srcs
 #cutf,cuts,cuth=1e-5,1e-5,1e-5 # These are the probability cuts in F,S,H bands at 99.5% rel -> 6295 srcs
+cutf,cuts,cuth=1e-4,1e-4,1e-4 # These are the probability cuts in F,S,H bands at 99% rel -> 7242 srcs
+
+#cutf,cuts,cuth=5e-5,5e-5,5e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7242 srcs
 
 probf[raf==0.0]=9999
 probs[ras==0.0]=9999
 probh[rah==0.0]=9999
 
+print(len(raf[probf<=cutf]))
+print(len(ras[probs<=cuts]))
+print(len(rah[probh<=cuth]))
 print('we should have a total of',len(raf[(probf<=cutf) | (probs<=cuts) | (probh<=cuth)]),'sources.')
 
 count=0
@@ -90,18 +97,20 @@ kcat=fits.open(wd+'xbootes_kenter+05.fits')
 ra_k=kcat[1].data['RAJ2000']
 dec_k=kcat[1].data['DEJ2000']
 name_k=kcat[1].data['CXOXB']
+used_r90=0
 for j in range(len(probf)):
 	if (probf[j] <= cutf or probs[j] <= cuts or probh[j] <= cuth): # Source is above threshold in at least one band
 		count=count+1
 		id.append(count)
 		unique.append(True)
 		prob_array=[probf[j],probs[j],probh[j]]
+		
 		if min(prob_array) == probf[j]: # Choose the ra,dec based on most significant band
 			ra_u.append(raf[j])
 			dec_u.append(decf[j])
 			r90_u.append(r90f[j])
 			
-			#compute positional error here
+			#compute positional error here as R50/sqrt(Net_R50)
 			band='broad'
 			imagemap=wd+'new_mosaics_detection/cdwfs_'+band+'_4reb.fits'
 			backmap=wd+'new_mosaics_detection/cdwfs_'+band+'_bkgmap_4reb.fits'
@@ -114,7 +123,7 @@ for j in range(len(probf)):
 			if net > 0:
 				poserr.append(r50/np.sqrt(net))
 			else:
-				print('try with r90...')
+				used_r90 += 1
 				r90=r90f[j]
 				s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(raf[j])+'d,'+str(decf[j])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(raf[j])+'d,'+str(decf[j])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
 				cts=s.check_output('dmlist "counts.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
@@ -145,7 +154,7 @@ for j in range(len(probf)):
 			if net > 0:
 				poserr.append(r50/np.sqrt(net))
 			else:
-				print('try with r90...')
+				used_r90 += 1
 				r90=r90s[j]
 				s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(ras[j])+'d,'+str(decs[j])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(ras[j])+'d,'+str(decs[j])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
 				cts=s.check_output('dmlist "counts.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
@@ -176,7 +185,7 @@ for j in range(len(probf)):
 			if net > 0:
 				poserr.append(r50/np.sqrt(net))
 			else:
-				print('try with r90...')
+				used_r90 += 1
 				r90=r90h[j]
 				s.call('dmextract infile="'+imagemap+'[bin pos=circle('+str(rah[j])+'d,'+str(dech[j])+'d,'+str(r90*0.000277778)+'d)]" mode=h bkg="'+backmap+'[bin pos=circle('+str(rah[j])+'d,'+str(dech[j])+'d,'+str(r90*0.000277778)+'d)]" outfile=counts.fits opt=generic mode=h clobber=yes',shell=True)
 				cts=s.check_output('dmlist "counts.fits[cols COUNTS]" data,clean | grep -v COUNTS',shell=True)
@@ -192,6 +201,21 @@ for j in range(len(probf)):
 		
 		if totf[j] == 0.0: # if source is not detected in F band, extract 3sigma upper limit
 			band='broad'
+			
+			path=wd+'new_mosaics_detection/cdwfs_'+band+'_r90_4reb.fits'
+			s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(ra_u[-1])+' dec='+str(dec_u[-1])+'',shell=True)
+			res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
+			logicalx,logicaly=res.splitlines()
+			logicalx,logicaly=float(logicalx),float(logicaly)
+			
+			ima=fits.open(path)
+			im=ima[0].data
+			ima.close()
+			
+			ima2=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_ecfmap_4reb.fits')
+			im2=ima2[0].data
+			ima2.close()
+			
 			imagemap=wd+'new_mosaics_detection/cdwfs_'+band+'_4reb.fits'
 			backmap=wd+'new_mosaics_detection/cdwfs_'+band+'_bkgmap_4reb.fits'
 			expomap=wd+'new_mosaics_detection/cdwfs_'+band+'_expomap_4reb.fits'
@@ -200,14 +224,6 @@ for j in range(len(probf)):
 				r90=r90s[j]
 			else:
 				#compute r90 from the psfmap
-				path=wd+'psfmaps/cdwfs_'+band+'_r90_4reb.fits'
-				s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(ra_u[-1])+' dec='+str(dec_u[-1])+'',shell=True)
-				res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
-				logicalx,logicaly=res.splitlines()
-				logicalx,logicaly=float(logicalx),float(logicaly)
-				ima=fits.open(path)
-				im=ima[0].data
-				ima.close()
 				r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			r90f[j]=r90
@@ -232,13 +248,28 @@ for j in range(len(probf)):
 			
 			#3sigma upper limit on CR
 			crf[j]=1.1*netf[j]/expf[j] 
-			cf=1.411E-11 # gamma=1.4 for Chandra Cy18 and broad band
+			cf=im2[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			#3sigma upper limit on flux
 			fluxf[j]=cf*crf[j] 
 		
-		if tots[j] == 0.0: # if source is not detected in F band, extract 3sigma upper limit and define counts for the HR
+		if tots[j] == 0.0: # if source is not detected in S band, extract 3sigma upper limit and define counts for the HR
 			band='soft'
+			
+			path=wd+'new_mosaics_detection/cdwfs_broad_r90_4reb.fits'
+			s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(ra_u[-1])+' dec='+str(dec_u[-1])+'',shell=True)
+			res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
+			logicalx,logicaly=res.splitlines()
+			logicalx,logicaly=float(logicalx),float(logicaly)
+			
+			ima=fits.open(path)
+			im=ima[0].data
+			ima.close()
+			
+			ima2=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_ecfmap_4reb.fits')
+			im2=ima2[0].data
+			ima2.close()
+			
 			imagemap=wd+'new_mosaics_detection/cdwfs_'+band+'_4reb.fits'
 			backmap=wd+'new_mosaics_detection/cdwfs_'+band+'_bkgmap_4reb.fits'
 			expomap=wd+'new_mosaics_detection/cdwfs_'+band+'_expomap_4reb.fits'
@@ -247,14 +278,6 @@ for j in range(len(probf)):
 				r90=r90f[j]
 			else:
 				#compute r90 from the psfmap
-				path=wd+'psfmaps/cdwfs_broad_r90_4reb.fits'
-				s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(ra_u[-1])+' dec='+str(dec_u[-1])+'',shell=True)
-				res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
-				logicalx,logicaly=res.splitlines()
-				logicalx,logicaly=float(logicalx),float(logicaly)
-				ima=fits.open(path)
-				im=ima[0].data
-				ima.close()
 				r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			r90s[j]=r90
@@ -279,26 +302,33 @@ for j in range(len(probf)):
 			
 			#3sigma upper limit on CR
 			crs[j]=1.1*nets[j]/exps[j] 
-			cf=8.707E-12 # gamma=1.4 for Chandra Cy18 and soft band
+			cf=im2[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			#3sigma upper limit on flux
 			fluxs[j]=cf*crs[j]
 			
-		if toth[j] == 0.0: # if source is not detected in F band, extract 3sigma upper limit and define counts for the HR
+		if toth[j] == 0.0: # if source is not detected in H band, extract 3sigma upper limit and define counts for the HR
 			band='hard'
+			
+			path=wd+'new_mosaics_detection/cdwfs_'+band+'_r90_4reb.fits'
+			s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(ra_u[-1])+' dec='+str(dec_u[-1])+'',shell=True)
+			res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
+			logicalx,logicaly=res.splitlines()
+			logicalx,logicaly=float(logicalx),float(logicaly)
+			
+			ima=fits.open(path)
+			im=ima[0].data
+			ima.close()
+			
+			ima2=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_ecfmap_4reb.fits')
+			im2=ima2[0].data
+			ima2.close()
+			
 			imagemap=wd+'new_mosaics_detection/cdwfs_'+band+'_4reb.fits'
 			backmap=wd+'new_mosaics_detection/cdwfs_'+band+'_bkgmap_4reb.fits'
 			expomap=wd+'new_mosaics_detection/cdwfs_'+band+'_expomap_4reb.fits'
 			# Here I have to compute fresh new r90... CREATE THE HARD BAND PSFMAP!
 			#compute r90 from the psfmap
-			path=wd+'psfmaps/cdwfs_'+band+'_r90_4reb.fits'
-			s.call('dmcoords '+path+' asol=none opt=cel celfmt=deg ra='+str(ra_u[-1])+' dec='+str(dec_u[-1])+'',shell=True)
-			res=s.check_output('pget dmcoords logicalx logicaly',shell=True)
-			logicalx,logicaly=res.splitlines()
-			logicalx,logicaly=float(logicalx),float(logicaly)
-			ima=fits.open(path)
-			im=ima[0].data
-			ima.close()
 			r90=im[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			r90h[j]=r90
@@ -323,7 +353,7 @@ for j in range(len(probf)):
 			
 			#3sigma upper limit on CR
 			crh[j]=1.1*neth[j]/exph[j] 
-			cf=2.022E-11 # gamma=1.4 for Chandra Cy18 and hard band
+			cf=im2[int(round(logicaly)-1),int(round(logicalx)-1)]
 			
 			#3sigma upper limit on flux
 			fluxh[j]=cf*crh[j]
@@ -411,7 +441,7 @@ for j in range(len(probf)):
 		unique.append(False)
 kcat.close()
 
-##### r90 used 120/7189 times = ~1.7%
+##### r90 used 122/7234 times = ~1.7% (2.4% as of 3-Oct-19)
 
 # Write final, clean catalog with HR and Murray_ID
 #define output stuff
@@ -469,13 +499,16 @@ e_fluxh_lo=e_fluxh_lo[unique==True]
 
 #write catalog
 cat=Table([id,ra_u,dec_u,poserr,probf,r90f,totf,bkgf,netf,e_netf_up,e_netf_lo,expf,crf,e_crf_up,e_crf_lo,fluxf,e_fluxf_up,e_fluxf_lo,probs,r90s,tots,bkgs,nets,e_nets_up,e_nets_lo,exps,crs,e_crs_up,e_crs_lo,fluxs,e_fluxs_up,e_fluxs_lo,probh,r90h,toth,bkgh,neth,e_neth_up,e_neth_lo,exph,crh,e_crh_up,e_crh_lo,fluxh,e_fluxh_up,e_fluxh_lo,hr,e_hr_up,e_hr_lo,out_name],names=('ID','RA','DEC','POS_ERR','PROB_F','R90_F','TOT_F','BKG_F','NET_F','E_NET_F_+','E_NET_F_-','EXP_F','CR_F','E_CR_F_+','E_CR_F_-','FLUX_F','E_FLUX_F_+','E_FLUX_F_-','PROB_S','R90_S','TOT_S','BKG_S','NET_S','E_NET_S_+','E_NET_S_-','EXP_S','CR_S','E_CR_S_+','E_CR_S_-','FLUX_S','E_FLUX_S_+','E_FLUX_S_-','PROB_H','R90_H','TOT_H','BKG_H','NET_H','E_NET_H_+','E_NET_H_-','EXP_H','CR_H','E_CR_H_+','E_CR_H_-','FLUX_H','E_FLUX_H_+','E_FLUX_H_-','HR','E_HR_+','E_HR_-','XB_ID'))
-cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat1.fits',format='fits',overwrite=True)
+cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits',format='fits',overwrite=True)
 
 #os.chdir(wd)
 #w=open(wd+'cdwfs_merged_cat1.reg','w')
 #for i in range(len(ra_u)):
 #	w.write('circle('+str(ra_u[i])+'d,'+str(dec_u[i])+'d,'+str(r90_u[i])+'\") # width=2 color=yellow\n')
 #w.close()
+
+print('For the positional error, R90 was used ',used_r90,' times')
+
 hr=np.array(hr)
 hr_clean=hr[hr>-98]
 print(count,len(raf))
