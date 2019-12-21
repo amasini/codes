@@ -10,6 +10,7 @@ from scipy.stats import gaussian_kde
 import scipy.stats.distributions
 from scipy.optimize import minimize
 import matplotlib as mpl
+from scipy.stats import kde
 
 # Function to compute distances in arcsec
 def distance(pointa, pointb):
@@ -119,20 +120,25 @@ wd = '/Users/alberto/Desktop/XBOOTES/'
 
 # Important parameters
 band = 'hard'
-simfolder = 'sim_indep/'
+simfolder = 'sim_indep_22-Nov-19/'
 use_outflux = True
 fit_dnds = True
 bootstrap = True
+write_out = True
 nboot = 10
-nsim = 1
-cut = 1e-4
+nsim = 10
+
 if band == 'broad':
+	logcut = -4.6
 	inppars=[-1.34,-2.35,8.1e-15] # broad Lehmer's dN/dS params
 elif band == 'soft':
+	logcut = -4.4
 	inppars=[-1.49,-2.48,6.0e-15] # soft
 else:
+	logcut = -4.2
 	inppars=[-1.32,-2.55,6.4e-15] # hard
-	
+cut = 10**logcut
+
 flux_inp,flux_out=[],[]
 input=[]
 tots,bkgs,expos,crs=[],[],[],[]
@@ -140,16 +146,26 @@ flux_limit = []
 probabilities = []
 print('Starting to match '+str(nsim)+' sims in the '+band+' band...')
 
+# Define the binning for everything 
+bins00 = np.logspace(np.log10(5e-17),np.log10(1e-12),51)
+centers00 = list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
+ds00 = list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
+centers00 = np.array(centers00)
+ds00 = np.array(ds00)
+area = 9.3 
+
 t_in=time.time()
 
 ##########################
 ##### Start matching #####
-spurious = []
+spurious,rr = [],[]
 for k in range(nsim):
-	k = 0
+	if nsim == 1:
+		#k = int(np.random.uniform(0,10)) # choose a random sim
+		k = 0
 	print(k+1, end=" ")
-	
-	# Take catalog of detected sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap)
+	flux_inp2=[]
+	# Take catalog of detected sources
 	cat1 = fits.open(wd+simfolder+str(k)+'cdwfs_'+band+'_sim_cat1_exp-psf.fits')
 	
 	simdata = cat1[1].data
@@ -159,14 +175,18 @@ for k in range(nsim):
 	
 	# Cut detected sample at a given probability threshold 
 	simdata = simdata[prob <= cut]
-	print(len(simdata),'above threshold ('+str(cut)+')')
+	print(len(simdata),'above threshold ('+str(round(logcut,1))+')')
 	
 	# Take the flux limit of the detected sources
 	flux_limit.append(np.min(simdata['FLUX']))
 	
 	# Input sources depend on band and simfolder
-	(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])	
+	#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])	
+	(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_'+simfolder[:-1]+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])	
 	input.append(flux_cdwfs)
+	
+	print(ra_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
+	print(dec_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
 	
 	# Sort them to start from the bright ones
 	ra_cdwfs=ra_cdwfs[::-1]
@@ -212,6 +232,7 @@ for k in range(nsim):
 			if len(counterparts) == 1:
 				
 				flux_inp.append(flux_cdwfs[i])
+				flux_inp2.append(flux_cdwfs[i])
 				deff.append(distances[0])
 				
 				flux_out.append(counterparts[0][13])
@@ -226,6 +247,7 @@ for k in range(nsim):
 			else:
 			
 				flux_inp.append(flux_cdwfs[i])
+				flux_inp2.append(flux_cdwfs[i])
 				
 				counterparts=np.array(counterparts)
 				counterparts=choose_best(counterparts)
@@ -240,31 +262,29 @@ for k in range(nsim):
 				simdata=np.delete(simdata,np.where(simdata['RA']==counterparts[0]),0)
 				
 		else:
+			if flux_cdwfs[i] > 1e-13:
+				print(flux_cdwfs[i],ra_cdwfs[i],dec_cdwfs[i])
 			unmatched=unmatched+1
+	
+	quante,bincenters_s = np.histogram(flux_cdwfs, bins=bins00)
+	
+	quante_out,bincenters_s = np.histogram(flux_inp2, bins=bins00)
+	ratio = (quante_out/quante)*area
+	ratio[np.isnan(ratio)] = area
+	
+	rr.append(ratio)
 	
 	spurious.append(len(simdata))
 	print(len(simdata),'spurious sources left.')
+	
 
 t_out=time.time()
 print(round(float(t_out-t_in),1),' seconds for the match.')
 ##### End of matching #####
 ###########################
 
-plt.figure()
-plt.hist(spurious,bins=10)
-plt.axvline(x=np.median(spurious),color='black',linestyle='-')
-plt.axvline(x=np.mean(spurious),color='black',linestyle='dashed')
-plt.show()
-
+print('Median spurious sources:',np.median(spurious))
 print('Observed flux ranges:',min(flux_out),max(flux_out))
-
-# Define the binning for everything 
-bins00 = np.logspace(np.log10(5e-17),np.log10(1e-12),101)
-centers00 = list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
-ds00 = list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
-centers00 = np.array(centers00)
-ds00 = np.array(ds00)
-area = 9.3 
 
 # Flux-flux plot
 flux_inp=np.array(flux_inp)
@@ -277,16 +297,20 @@ snr = tots/bkgs
 x=np.log10(flux_inp)
 y=np.log10(flux_out.astype(np.float64))
 
-x1=np.log10(flux_inp.astype(np.float64)[(probabilities < 2e-6) & (snr > 2)])
-y1=np.log10(flux_out.astype(np.float64)[(probabilities < 2e-6) & (snr > 2)])
-
-plt.figure()
-plt.plot(np.linspace(-16,-12,20),np.linspace(-16,-12,20),'r--')
-plt.scatter(x,y,color='gray',marker='.',zorder=-1,alpha=0.3)
-plt.scatter(x1,y1,color='k',marker='.')
-plt.xlabel('Input flux')
-plt.ylabel('Output flux')
+plt.figure(figsize=(8,7))
+sc = plt.scatter(x,y,c=np.log10(expos),marker='o',zorder=-1)
+cbar = plt.colorbar(sc, pad =0.0)
+cbar.ax.tick_params(labelsize=12)
+cbar.set_label('log(Exposure/s)', rotation=270, labelpad=15, fontsize=12)
+plt.plot(np.linspace(-16,-12,20),np.linspace(-16,-12,20),'k--')
+plt.xlabel(r'log($F_{\rm Inp}$/erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+plt.ylabel(r'log($F_{\rm Out}$/erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+plt.tick_params(axis='both', which='major', direction='in', length=6, labelsize=12)
+plt.axis([-16.3,-11.7,-16.3,-11.7])
+plt.tight_layout()
 plt.show()
+#plt.savefig(wd+'fin-fout.pdf',format='pdf')
+
 
 # INPUT LOGNLOGS
 quante,bincenters_s = np.histogram(input,bins=bins00)
@@ -297,27 +321,28 @@ ncum_in = list(reversed(np.cumsum(list(reversed(quante_perarea)))))
 
 # SENSITIVITY CURVE
 # Analytical
-if band != 'hard':
-	#fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_interpolation_sens.dat',unpack=True)
-	fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90.dat',unpack=True)
-else:
-	fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90.dat',unpack=True)
+fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_geo.dat',unpack=True)
 sens=np.interp(centers00,fl3,ar3)
 
 # Sims
-quante_out,bincenters_s = np.histogram(flux_inp, bins = bins00)
-ratio = (quante_out/quante)*area
-ratio[np.isnan(ratio)] = area
+rr=np.array(rr)
 
-equanteout = np.sqrt(quante_out)
-equante = np.sqrt(quante)
-eratio = np.sqrt((equanteout/quante)**2+(ratio*equante/quante)**2)*area
+ratio = np.median(rr, axis=0)
+eratio = np.std(rr, axis=0)
+#quante_out,bincenters_s = np.histogram(flux_inp, bins = bins00)
+#ratio = (quante_out/quante)*area
+#ratio[np.isnan(ratio)] = area
 
-# Write out the sensitivity from simulations
-w=open(wd+'cdwfs_'+band+'_sens_sim_indep.dat','w')
-for i in range(len(ratio)):
-	w.write(str(centers00[i])+' \t '+str(ratio[i])+' \t '+str(eratio[i])+'\n')
-w.close()
+#equanteout = np.sqrt(quante_out)
+#equante = np.sqrt(quante)
+#eratio = np.sqrt((equanteout/quante)**2+(ratio*equante/quante)**2)*area
+
+if write_out == True:
+	# Write out the sensitivity from simulations
+	w=open(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_'+simfolder[:-1]+'.dat','w')
+	for i in range(len(ratio)):
+		w.write(str(centers00[i])+' \t '+str(ratio[i])+' \t '+str(eratio[i])+'\n')
+	w.close()
 
 # Plot the sensitivity (analytical and sims)
 f,ax1=plt.subplots(1,1)
@@ -333,6 +358,7 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
+sys.exit()
 
 # FIT (OR NOT) THE dN/dS double power law
 if fit_dnds == True:

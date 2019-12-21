@@ -3,34 +3,42 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import sys
 from scipy.stats import kde
+import matplotlib.gridspec as gridspec
+from collections import OrderedDict
+from matplotlib import colors
+from astropy.cosmology import FlatLambdaCDM
+from astropy import units as u
+import seaborn as sns
+
+cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Om0=0.3)
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
 # Open the matched master catalog (-cp version contains only one CDWFS source per line) 
 # 7234 sources 
 #cat=fits.open('/Users/alberto/Downloads/nway-master/cdwfs_I-Ks-3.6-cp.fits')
-cat=fits.open(wd+'CDWFS_I-Ks-3.6_v2.fits')
+cat=fits.open(wd+'CDWFS_I-Ks-3.6_v120119.fits')
 data=cat[1].data
 cols=cat[1].columns
 names=cols.names
 pany=data['p_any']
-poserr0=data['CHA_POS_ERR']
-xb_id0=data['CHA_XB_ID']
-fluxf0=data['CHA_FLUX_F']
-efluxfp0=data['CHA_E_FLUX_F_+']
-fluxs0=data['CHA_FLUX_S']
-efluxsp0=data['CHA_E_FLUX_S_+']
-fluxh0=data['CHA_FLUX_H']
-efluxhp0=data['CHA_E_FLUX_H_+']
-hr0=data['CHA_HR']
-ehr0p=data['CHA_E_HR_+']
-ehr0n=data['CHA_E_HR_-']
+poserr0=data['CDWFS_POS_ERR']
+xb_id0=data['CDWFS_XB_ID']
+fluxf0=data['CDWFS_FLUX_F']
+efluxfp0=data['CDWFS_E_FLUX_F_+']
+fluxs0=data['CDWFS_FLUX_S']
+efluxsp0=data['CDWFS_E_FLUX_S_+']
+fluxh0=data['CDWFS_FLUX_H']
+efluxhp0=data['CDWFS_E_FLUX_H_+']
+hr0=data['CDWFS_HR']
+ehr0p=data['CDWFS_E_HR_+']
+ehr0n=data['CDWFS_E_HR_-']
 imag0=data['NDWFS_MAG_AUTO']
 kmag0=data['IBIS_MAG_BEST']
 spmag0=data['SDWFS_ch1_ma']
-sep0=data['Separation_NDWFS_CHA']
-sep0k=data['Separation_IBIS_CHA']
-sep0sp=data['Separation_SDWFS_CHA']
+sep0=data['Separation_NDWFS_CDWFS']
+sep0k=data['Separation_IBIS_CDWFS']
+sep0sp=data['Separation_SDWFS_CDWFS']
 zspec0=data['zsp']
 zph_g0=data['zph_G']
 chi_g0=data['chi2_G']
@@ -38,6 +46,7 @@ zph_ga0=data['zph_G+A']
 chi_ga0=data['chi2_G+A']
 ebv0=data['E_B-V']
 chi_s0=data['chi2_S']
+ncat = data['ncat']
 cat.close()
 print('='*30)
 print('The full CDWFS catalog has',len(data),'sources.')
@@ -69,7 +78,7 @@ plt.show()
 #plt.savefig('/Users/alberto/Desktop/cdwfs_flux.pdf',format='pdf')
 
 
-p_any_cut=0.12 # 0.54 (0.12 as of 04-Sep-19) needed to have <5% false associations
+p_any_cut=0.13 # 0.54 (0.12 as of 04-Sep-19; 0.20 as of 15-Oct-19, 0.16 as of 30-Nov-19) needed to have <5% false associations
 
 print('A total of',len(pany[pany>0]),' (p_any>0) opt-NIR associations found.')
 
@@ -77,6 +86,10 @@ poserr=poserr0[pany>p_any_cut]
 xb_id=xb_id0[pany>p_any_cut]
 fluxf=fluxf0[pany>p_any_cut]
 efluxfp=efluxfp0[pany>p_any_cut]
+fluxs=fluxs0[pany>p_any_cut]
+efluxsp=efluxsp0[pany>p_any_cut]
+fluxh=fluxh0[pany>p_any_cut]
+efluxhp=efluxhp0[pany>p_any_cut]
 imag=imag0[pany>p_any_cut]
 kmag=kmag0[pany>p_any_cut]
 spmag=spmag0[pany>p_any_cut]
@@ -97,11 +110,13 @@ pany=pany[pany>p_any_cut]
 
 print('A total of',len(imag),'ROBUST (p_any>'+str(p_any_cut)+') opt-NIR associations found.')
 
+
 # Plots of STARS with HR and photometric label from Chung
 what=np.full_like(chi_g,'A',dtype='str')
 what[(chi_g<chi_ga) & (chi_g<chi_s)]='G'
 what[(chi_s<chi_ga) & (chi_s<chi_g)]='S'
-print('Based on minimum Chi^2 from Chung+14, we have',len(what[what=='A']),'AGN,',len(what[what=='G']),'GAL, and',len(what[what=='S']),'STARS.')
+what[chi_g==-99]='U'
+print('Based on minimum Chi^2 from Chung+14, we have',len(what[what=='A']),'AGN,',len(what[what=='G']),'GAL, ',len(what[what=='S']),'STARS, and',len(what[what=='U']),'UNKNOWN')
 
 chi_galoragn=chi_g
 chi_galoragn[chi_ga<chi_g]=chi_ga[chi_ga<chi_g]
@@ -127,20 +142,100 @@ cbar.set_label('HR', rotation=270)
 plt.tight_layout()
 plt.show()
 
+'''
+fluxs_g = fluxs[what=='G']
+efluxsp_g = efluxsp[what=='G']
+imag_g = imag[what=='G']
+
+fluxs_a = fluxs[what=='A']
+efluxsp_a = efluxsp[what=='A']
+imag_a = imag[what=='A']
+
+fluxs_s = fluxs[what=='S']
+efluxsp_s = efluxsp[what=='S']
+imag_s = imag[what=='S']
+
+fluxs_u = fluxs[what=='U']
+efluxsp_u = efluxsp[what=='U']
+imag_u = imag[what=='U']
+
+c = 5.91
+x = np.logspace(-16,-12,20)
+y = -2.5*(np.log10(x) + c) # X/O relation 
+yup = 2.5*(1-(np.log10(x) + c))
+ydo = 2.5*(-1-(np.log10(x) + c))
+
+x0 = np.log10(fluxs[(efluxsp!=0) & (imag != 99) & (imag != -99)])
+y0 = imag[(efluxsp!=0) & (imag != 99) & (imag != -99)]
+
+x_g = np.log10(fluxs_g[(efluxsp_g!=0) & (imag_g != 99) & (imag_g != -99)])
+y_g = imag_g[(efluxsp_g!=0) & (imag_g != 99) & (imag_g != -99)]
+
+x_a = np.log10(fluxs_a[(efluxsp_a!=0) & (imag_a != 99) & (imag_a != -99)])
+y_a = imag_a[(efluxsp_a!=0) & (imag_a != 99) & (imag_a != -99)]
+
+x_s = np.log10(fluxs_s[(efluxsp_s!=0) & (imag_s != 99) & (imag_s != -99)])
+y_s = imag_s[(efluxsp_s!=0) & (imag_s != 99) & (imag_s != -99)]
+
+x_u = np.log10(fluxs_u[(efluxsp_u!=0) & (imag_u != 99) & (imag_u != -99)])
+y_u = imag_u[(efluxsp_u!=0) & (imag_u != 99) & (imag_u != -99)]
+
+plt.figure()
+
+plt.scatter(x_g,y_g,'g.', zorder=-1, alpha = 0.2)
+plt.scatter(x_a,y_a,'r.', zorder=-1, alpha = 0.2)
+plt.scatter(x_s,y_s,'b*',markersize=15)
+#plt.scatter(x_u,y_u,color='gray',marker='.', zorder=-1)
+
+# 2D Histogram
+nbins=40
+#plt.hist2d(x0, y0, bins=nbins, cmap=plt.cm.BuGn)
+
+k_a = kde.gaussian_kde([x_a,y_a])
+xi_a, yi_a = np.mgrid[x_a.min():x_a.max():nbins*1j, y_a.min():y_a.max():nbins*1j]
+zi_a = k_a(np.vstack([xi_a.flatten(), yi_a.flatten()]))
+
+k_g = kde.gaussian_kde([x_g,y_g])
+xi_g, yi_g = np.mgrid[x_g.min():x_g.max():nbins*1j, y_g.min():y_g.max():nbins*1j]
+zi_g = k_g(np.vstack([xi_g.flatten(), yi_g.flatten()]))
+
+k_s = kde.gaussian_kde([x_s,y_s])
+xi_s, yi_s = np.mgrid[x_s.min():x_s.max():nbins*1j, y_s.min():y_s.max():nbins*1j]
+zi_s = k_s(np.vstack([xi_s.flatten(), yi_s.flatten()]))
+
+plt.contour(xi_s, yi_s, zi_s.reshape(xi_s.shape), cmap='Blues', linewidths = 4)
+plt.contour(xi_g, yi_g, zi_g.reshape(xi_g.shape), cmap='Greens', linewidths = 4)
+plt.contour(xi_a, yi_a, zi_a.reshape(xi_a.shape), cmap='Reds', linewidths = 4)
+
+plt.plot(np.log10(x),y,'k',linestyle='dotted')
+plt.plot(np.log10(x),yup,'k--')
+plt.plot(np.log10(x),ydo,'k--')
+plt.xlabel('Log Soft band flux')
+plt.ylabel('i band magnitude')
+plt.annotate('AGN', xy=(-14,24), color='red', fontsize=15, weight='bold')
+plt.annotate('GAL', xy=(-15.5,23), color='green', fontsize=15, weight='bold')
+plt.annotate('STARS', xy=(-15.7,17), color='blue', fontsize=15, weight='bold')
+plt.axis([-16,-12.8,14,26])
+#plt.plot(diff0,diff1,'b.')
+#plt.plot(d0,d1,'r--')
+#plt.axis([-2,10,-2,10])
+#plt.xscale('log')
+plt.show()
+'''
 
 hr_g=hr1[what=='G']
 hr_a=hr1[what=='A']
 hr_s=hr1[what=='S']
 
-#plt.figure()
-#plt.hist(hr_a,bins=20,color='b',histtype='step',linewidth=3,label='AGN',density=1)
-#plt.hist(hr_g,bins=20,color='g',histtype='step',linewidth=3,label='GAL',density=1)
-#plt.hist(hr_s,bins=20,color='r',histtype='step',linewidth=3,label='STAR',density=1)
+plt.figure()
+plt.hist(hr_a,bins=20,color='b',histtype='step',linewidth=3,label='AGN',density=1)
+plt.hist(hr_g,bins=20,color='g',histtype='step',linewidth=3,label='GAL',density=1)
+plt.hist(hr_s,bins=20,color='r',histtype='step',linewidth=3,label='STAR',density=1)
 #zstar=zsp[what=='S']
 #print(zstar[zstar!=-99])
 #plt.hist(zstar[zstar!=-99],bins=20,color='r',histtype='step',linewidth=3,label='STAR')
 #plt.legend()
-#plt.show()
+plt.show()
 
 
 ztot,specz,photz,zflag,sp,ph=[],[],[],[],[],[]
@@ -198,7 +293,7 @@ print('Redshifts range:',min(ztot),max(ztot))
 #plt.savefig('/Users/alberto/Desktop/cdwfs_z.pdf',format='pdf',dpi=500)
 #plt.show()
 
-################################# HR-z
+#-------------- HR - REDSHIFT PLANE WITH HISTOGRAMS OF HR AND Z --------------#
 fig = plt.figure(tight_layout=True,figsize=[8,8])
 gs = gridspec.GridSpec(3,3)
 gs.update(wspace=0., hspace=0.)
@@ -250,6 +345,7 @@ hr_upl0B=hr[((hr-ehrn)==-1) & (pany_z>p_any_cut)]
 z_upl0=ztot[(hr-ehrn)==-1]
 z_upl0B=ztot[((hr-ehrn)==-1) & (pany_z>p_any_cut)]
 #what=what[zph_ga!=-99]
+what_noz = what[zflag!=1]
 what=what[zflag==1]
 print('Based on SED fits from Chung+14, we have',len(what[what=='A']),'AGN,',len(what[what=='G']),'GAL, and',len(what[what=='S']),'STARS. (The stars are the ones with spec-z.)')
 
@@ -333,14 +429,10 @@ ax1.legend(by_label.values(), by_label.keys(),loc='upper right')
 plt.show()
 #plt.savefig('/Users/alberto/Desktop/cdwfs_hrz_6.pdf',format='pdf')
 
-###################
-#plt.figure()
-#plt.scatter(ebv[zph_ga!=-99],hr,marker='.',color='g')
-#plt.xlabel(r'$E(B-V)$')
-#plt.ylabel(r'HR=(H-S)/(H+S)')
-#plt.show()
 
-# LX - z plot
+
+#--------------------------- LX - REDSHIFT PLANE ---------------------------#
+
 efluxfp0=efluxfp[zflag==1]
 efluxfp0B=efluxfp0[pany_z>p_any_cut]
 goodflux0=fluxf[zflag==1]
@@ -389,7 +481,7 @@ plt.errorbar(ztot[(uplim==1) & (pany_z>p_any_cut)],lfullB[uplimB==1],marker='*',
 plt.plot(zz,l,'k--')
 plt.plot(z1,lstar_un,color='lime',linestyle='dashed',linewidth=3,label='A15 Unobscured')
 plt.plot(z2,lstar_ob,color='yellow',linestyle='dashed',linewidth=3,label='A15 Obscured')
-#plt.xscale('log')
+plt.xscale('log')
 plt.yscale('log')
 plt.xlabel('Redshift',fontsize=20)
 plt.ylabel(r'$L_{0.5-7}$ (erg/s)',fontsize=20)
@@ -401,6 +493,268 @@ plt.legend(loc='lower right')
 plt.tight_layout()
 plt.show()
 #plt.savefig('/Users/alberto/Desktop/cdwfs_lxz.pdf',format='pdf')
+
+#--------- HARD LOCUS PLOT, WITH CANDIDATE STARS AND GALAXIES OVERLAID ---------#
+
+# Define the quantities (hard flux, error, and i-band magnitude) with NO Z (to show stars)
+fluxh_noz = fluxh[zflag!=1]
+efluxhp_noz = efluxhp[zflag!=1]
+imag_noz = imag[zflag!=1]
+
+# Define same quantities for sources with redshift
+fluxh = fluxh[zflag==1]
+efluxhp = efluxhp[zflag==1]
+imag_yz = imag[zflag==1]
+
+# Filter the last group in the subgroups (Gals, AGNs, Stars, Unknown)
+fluxh_g = fluxh[what=='G']
+efluxhp_g = efluxhp[what=='G']
+imag_g = imag_yz[what=='G']
+
+# Define the Low Luminosity Galaxies (likely true galaxies and not obscured AGN - or CT AGNs?)
+fluxh_gLL = fluxh[(what=='G') & (lfullB < 1e42)]
+efluxhp_gLL = efluxhp[(what=='G') & (lfullB < 1e42)]
+imag_gLL = imag_yz[(what=='G') & (lfullB < 1e42)]
+
+# Define AGN
+fluxh_a = fluxh[what=='A']
+efluxhp_a = efluxhp[what=='A']
+imag_a = imag_yz[what=='A']
+
+# Define Stars with redshift (likely AGN/Gals with slightly better Chi^2 for Star template)
+fluxh_s = fluxh[what=='S']
+efluxhp_s = efluxhp[what=='S']
+imag_s = imag_yz[what=='S']
+
+# Define Stars with no redshift
+fluxh_snoz = fluxh_noz[what_noz=='S']
+efluxhp_snoz = efluxhp_noz[what_noz=='S']
+imag_snoz = imag_noz[what_noz=='S']
+
+# Define Unknown
+fluxh_u = fluxh[what=='U']
+efluxhp_u = efluxhp[what=='U']
+imag_u = imag_yz[what=='U']
+
+# Hard locus, as from Tananbaum+79, Maccacaro+88 
+# X/O = log(fx) + C + m_opt/2.5
+c = 5.44 # As used by Marchesi+16, i band
+x = np.logspace(-16,-12,20) 
+y = -2.5*(np.log10(x) + c) # X/O = 0 (locus) 
+yup = 2.5*(1-(np.log10(x) + c)) # X/O = +/-1 lines
+ydo = 2.5*(-1-(np.log10(x) + c))
+
+# Transform to logarithms the fluxes, and filter out the X-ray uplims and bad photometry
+# for all the classes defined above
+x0 = np.log10(fluxh[(efluxhp!=0) & (imag_yz != 99) & (imag_yz != -99)])
+y0 = imag_yz[(efluxhp!=0) & (imag_yz != 99) & (imag_yz != -99)]
+
+x_g = np.log10(fluxh_g[(efluxhp_g!=0) & (imag_g != 99) & (imag_g != -99)])
+y_g = imag_g[(efluxhp_g!=0) & (imag_g != 99) & (imag_g != -99)]
+
+x_gLL = np.log10(fluxh_gLL[(efluxhp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)])
+y_gLL = imag_gLL[(efluxhp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)]
+
+x_a = np.log10(fluxh_a[(efluxhp_a!=0) & (imag_a != 99) & (imag_a != -99)])
+y_a = imag_a[(efluxhp_a!=0) & (imag_a != 99) & (imag_a != -99)]
+
+x_s = np.log10(fluxh_s[(efluxhp_s!=0) & (imag_s != 99) & (imag_s != -99)])
+y_s = imag_s[(efluxhp_s!=0) & (imag_s != 99) & (imag_s != -99)]
+
+x_snoz = np.log10(fluxh_snoz[(efluxhp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)])
+y_snoz = imag_snoz[(efluxhp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)]
+
+x_u = np.log10(fluxh_u[(efluxhp_u!=0) & (imag_u != 99) & (imag_u != -99)])
+y_u = imag_u[(efluxhp_u!=0) & (imag_u != 99) & (imag_u != -99)]
+
+# Define the X/0 for the AGNs
+xovero_a = x_a + c + y_a/2.5
+xovero_g = x_g + c + y_g/2.5
+
+fluxrestframe=fluxh*(1+ztot)**(-0.2)
+
+dl=cosmo.luminosity_distance(ztot)
+dl2=dl.value*3.086e24
+
+lhard=4*3.141592*fluxrestframe*dl2**2
+
+lhard_a = lhard[what=='A']
+lhard_a_filt = lhard_a[(efluxhp_a!=0) & (imag_a != 99) & (imag_a != -99)]
+logL_a = np.log10(lhard_a_filt)
+
+lhard_g = lhard[what=='G']
+lhard_g_filt = lhard_g[(efluxhp_g!=0) & (imag_g != 99) & (imag_g != -99)]
+logL_g = np.log10(lhard_g_filt)
+
+model_xovero = logL_a-43.7
+
+plt.figure(figsize = [6,6])
+plt.plot(logL_a, xovero_a, 'r.')
+plt.plot(logL_g, xovero_g, 'g.')
+plt.plot(logL_a,model_xovero,'k--')
+plt.xlabel('Hard band Luminosity')
+plt.ylabel('X/O')
+plt.show()
+
+
+# Gaussian smoothing to create nice contours for the three main groups
+nbins=40
+
+k_a = kde.gaussian_kde([x_a,y_a])
+xi_a, yi_a = np.mgrid[x_a.min():x_a.max():nbins*1j, y_a.min():y_a.max():nbins*1j]
+zi_a = k_a(np.vstack([xi_a.flatten(), yi_a.flatten()]))
+
+k_g = kde.gaussian_kde([x_g,y_g])
+xi_g, yi_g = np.mgrid[x_g.min():x_g.max():nbins*1j, y_g.min():y_g.max():nbins*1j]
+zi_g = k_g(np.vstack([xi_g.flatten(), yi_g.flatten()]))
+
+k_s = kde.gaussian_kde([x_snoz,y_snoz])
+xi_s, yi_s = np.mgrid[x_snoz.min():x_snoz.max():nbins*1j, y_snoz.min():y_snoz.max():nbins*1j]
+zi_s = k_s(np.vstack([xi_s.flatten(), yi_s.flatten()]))
+
+# Plot the results
+plt.figure(figsize=[6,6])
+
+plt.scatter(x_g,y_g,color='green', marker='.', zorder=-1, alpha = 0.2)
+plt.scatter(x_gLL,y_gLL, color='green', marker='D', zorder=-1, alpha = 0.7)
+plt.scatter(x_a,y_a, color='red', marker='.', zorder=-1, alpha = 0.2)
+plt.scatter(x_s,y_s, color='magenta', marker='*', s=100)
+plt.scatter(x_snoz,y_snoz, color='blue', marker='*', s=100)
+
+plt.contour(xi_s, yi_s, zi_s.reshape(xi_s.shape), cmap='Blues', linewidths = 4)
+plt.contour(xi_g, yi_g, zi_g.reshape(xi_g.shape), cmap='Greens', linewidths = 4)
+plt.contour(xi_a, yi_a, zi_a.reshape(xi_a.shape), cmap='Reds', linewidths = 4)
+
+plt.plot(np.log10(x),y,'k',linestyle='dotted')
+plt.plot(np.log10(x),yup,'k--')
+plt.plot(np.log10(x),ydo,'k--')
+
+plt.xlabel(r'Log($F_{2-7}$/erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+plt.ylabel('i band magnitude' , fontsize=12)
+plt.annotate('AGN', xy=(-13.2,21), color='red', fontsize=15, weight='bold')
+plt.annotate('GAL', xy=(-14.7,24), color='green', fontsize=15, weight='bold')
+plt.annotate('STARS', xy=(-14.9,19), color='blue', fontsize=15, weight='bold')
+plt.annotate(r'$L_{\rm X} < 10^{42}$ erg/s', xy=(-13.8,15), color='green', fontsize=10)
+plt.axis([-15,-12.5,14,26])
+plt.tick_params(top=True, right=True, direction='in', length=7, labelsize=12)
+plt.show()
+
+#--------- SOFT LOCUS PLOT, WITH CANDIDATE STARS AND GALAXIES OVERLAID ---------#
+
+# Define the quantities (soft flux, error, and i-band magnitude) with NO Z (to show stars)
+fluxs_noz = fluxs[zflag!=1]
+efluxsp_noz = efluxsp[zflag!=1]
+imag_noz = imag[zflag!=1]
+
+# Define same quantities for sources with redshift
+fluxs = fluxs[zflag==1]
+efluxsp = efluxsp[zflag==1]
+imag = imag[zflag==1]
+
+# Filter the last group in the subgroups (Gals, AGNs, Stars, Unknown)
+fluxs_g = fluxs[what=='G']
+efluxsp_g = efluxsp[what=='G']
+imag_g = imag[what=='G']
+
+# Define the Low Luminosity Galaxies (likely true galaxies and not obscured AGN - or CT AGNs?)
+fluxs_gLL = fluxs[(what=='G') & (lfullB < 1e42)]
+efluxsp_gLL = efluxsp[(what=='G') & (lfullB < 1e42)]
+imag_gLL = imag[(what=='G') & (lfullB < 1e42)]
+
+# Define AGN
+fluxs_a = fluxs[what=='A']
+efluxsp_a = efluxsp[what=='A']
+imag_a = imag[what=='A']
+
+# Define Stars with redshift (likely AGN/Gals with slightly better Chi^2 for Star template)
+fluxs_s = fluxs[what=='S']
+efluxsp_s = efluxsp[what=='S']
+imag_s = imag[what=='S']
+
+# Define Stars with no redshift
+fluxs_snoz = fluxs_noz[what_noz=='S']
+efluxsp_snoz = efluxsp_noz[what_noz=='S']
+imag_snoz = imag_noz[what_noz=='S']
+
+# Define Unknown
+fluxs_u = fluxs[what=='U']
+efluxsp_u = efluxsp[what=='U']
+imag_u = imag[what=='U']
+
+# Soft locus, as from Tananbaum+79, Maccacaro+88 
+# X/O = log(fx) + C + m_opt/2.5
+c = 5.91 # As used by Marchesi+16, i band
+x = np.logspace(-16,-12,20) 
+y = -2.5*(np.log10(x) + c) # X/O = 0 (locus) 
+yup = 2.5*(1-(np.log10(x) + c)) # X/O = +/-1 lines
+ydo = 2.5*(-1-(np.log10(x) + c))
+
+# Transform to logarithms the fluxes, and filter out the X-ray uplims and bad photometry
+# for all the classes defined above
+x0 = np.log10(fluxs[(efluxsp!=0) & (imag != 99) & (imag != -99)])
+y0 = imag[(efluxsp!=0) & (imag != 99) & (imag != -99)]
+
+x_g = np.log10(fluxs_g[(efluxsp_g!=0) & (imag_g != 99) & (imag_g != -99)])
+y_g = imag_g[(efluxsp_g!=0) & (imag_g != 99) & (imag_g != -99)]
+
+x_gLL = np.log10(fluxs_gLL[(efluxsp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)])
+y_gLL = imag_gLL[(efluxsp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)]
+
+x_a = np.log10(fluxs_a[(efluxsp_a!=0) & (imag_a != 99) & (imag_a != -99)])
+y_a = imag_a[(efluxsp_a!=0) & (imag_a != 99) & (imag_a != -99)]
+
+x_s = np.log10(fluxs_s[(efluxsp_s!=0) & (imag_s != 99) & (imag_s != -99)])
+y_s = imag_s[(efluxsp_s!=0) & (imag_s != 99) & (imag_s != -99)]
+
+x_snoz = np.log10(fluxs_snoz[(efluxsp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)])
+y_snoz = imag_snoz[(efluxsp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)]
+
+x_u = np.log10(fluxs_u[(efluxsp_u!=0) & (imag_u != 99) & (imag_u != -99)])
+y_u = imag_u[(efluxsp_u!=0) & (imag_u != 99) & (imag_u != -99)]
+
+# Gaussian smoothing to create nice contours for the three main groups
+nbins=40
+
+k_a = kde.gaussian_kde([x_a,y_a])
+xi_a, yi_a = np.mgrid[x_a.min():x_a.max():nbins*1j, y_a.min():y_a.max():nbins*1j]
+zi_a = k_a(np.vstack([xi_a.flatten(), yi_a.flatten()]))
+
+k_g = kde.gaussian_kde([x_g,y_g])
+xi_g, yi_g = np.mgrid[x_g.min():x_g.max():nbins*1j, y_g.min():y_g.max():nbins*1j]
+zi_g = k_g(np.vstack([xi_g.flatten(), yi_g.flatten()]))
+
+k_s = kde.gaussian_kde([x_snoz,y_snoz])
+xi_s, yi_s = np.mgrid[x_snoz.min():x_snoz.max():nbins*1j, y_snoz.min():y_snoz.max():nbins*1j]
+zi_s = k_s(np.vstack([xi_s.flatten(), yi_s.flatten()]))
+
+# Plot the results
+plt.figure(figsize=[6,6])
+
+plt.scatter(x_g,y_g,color='green', marker='.', zorder=-1, alpha = 0.2)
+plt.scatter(x_gLL,y_gLL, color='green', marker='D', zorder=-1, alpha = 0.7)
+plt.scatter(x_a,y_a, color='red', marker='.', zorder=-1, alpha = 0.2)
+plt.scatter(x_s,y_s, color='magenta', marker='*', s=100)
+plt.scatter(x_snoz,y_snoz, color='blue', marker='*', s=100)
+
+plt.contour(xi_s, yi_s, zi_s.reshape(xi_s.shape), cmap='Blues', linewidths = 4)
+plt.contour(xi_g, yi_g, zi_g.reshape(xi_g.shape), cmap='Greens', linewidths = 4)
+plt.contour(xi_a, yi_a, zi_a.reshape(xi_a.shape), cmap='Reds', linewidths = 4)
+
+plt.plot(np.log10(x),y,'k',linestyle='dotted')
+plt.plot(np.log10(x),yup,'k--')
+plt.plot(np.log10(x),ydo,'k--')
+
+plt.xlabel(r'Log($F_{0.5-2}$/erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+plt.ylabel('i band magnitude' , fontsize=12)
+plt.annotate('AGN', xy=(-14,24), color='red', fontsize=15, weight='bold')
+plt.annotate('GAL', xy=(-15.5,23), color='green', fontsize=15, weight='bold')
+plt.annotate('STARS', xy=(-15.7,17), color='blue', fontsize=15, weight='bold')
+plt.annotate(r'$L_{\rm X} < 10^{42}$ erg/s', xy=(-14.3,15), color='green', fontsize=10)
+plt.axis([-16,-12.8,14,26])
+plt.tick_params(top=True, right=True, direction='in', length=7, labelsize=12)
+plt.show()
+
+sys.exit()
 
 # PHOTOMETRY
 poserr=poserr[(imag<99.0) & (imag!=-99)]

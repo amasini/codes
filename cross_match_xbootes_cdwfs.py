@@ -13,13 +13,13 @@ def distance(pointa, pointb):
     return np.sqrt(((pointa[0]-pointb[0])*xx*3600)**2 +((pointa[1]-pointb[1])*3600)**2)
 
 wd='/Users/alberto/Desktop/XBOOTES/'
-'''
+
 # Open the CDWFS catalog
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1.fits')
-ra=cat[1].data['RA']
-dec=cat[1].data['DEC']
-r90=cat[1].data['R90_F']
-tot=cat[1].data['TOT_F']
+cat=fits.open(wd+'CDWFS_I-Ks-3.6_v2.fits')
+ra=cat[1].data['CHA_RA']
+dec=cat[1].data['CHA_DEC']
+r90=cat[1].data['CHA_R90_F']
+#tot=cat[1].data['TOT_F']
 
 # Write out the region file of the CDWFS
 #w=open(wd+'new_mosaics_detection/cdwfs_merged_cat1.reg','w')
@@ -36,7 +36,7 @@ ctss=ken[1].data['Scts']
 ctsh=ken[1].data['Hcts']
 
 band='broad'
-path=wd+'psfmaps/cdwfs_'+band+'_r90_4reb.fits'
+path=wd+'new_mosaics_detection/cdwfs_'+band+'_r90_4reb.fits'
 ima=fits.open(path)
 im=ima[0].data
 ima.close()
@@ -101,7 +101,9 @@ print(mat,'matches')
 print(len(ra_un),'XBOOTES missing in CDWFS.')
 print(len(prob[prob<7e-5]),'XBOOTES sources which satisfy reliability cut.')
 print((time.time()-tin)/60.,'minutes for the match.')
-'''
+
+sys.exit()
+
 (ra,dec,cts_old,cts_new,r90,prob)=np.genfromtxt(wd+'xbootes_unmatched.dat',skip_header=1,unpack=True,usecols=[0,1,2,3,5,6])
 
 bins=np.logspace(np.log10(1e-10),np.log10(1),40)

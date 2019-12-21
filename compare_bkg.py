@@ -18,12 +18,16 @@ def gauss(x,mu,sigma):
 
 wd="/Users/alberto/Desktop/XBOOTES/"
 
-band='soft'
-band2='0.5-2'
+print('this script is old, the actual bkgmaps were done in rescale_bkg_from_blank_sky-files.py')
+sys.exit()
 
+band='soft'
+band2='0.5-2' # 0.5-2 for soft
+band3 = '05to2'
+before = False
 
 obs=np.genfromtxt(wd+'data_counts.dat',unpack=True, usecols=1,dtype='str')
-diff1,exp=[],[],[]
+diff1,exp=[],[]
 for i in range(len(obs)):
 	if len(obs[i]) == 4:
 		stem='0'+obs[i]
@@ -46,15 +50,21 @@ for i in range(len(obs)):
 	cts2=cts*(4247721./area) # This is the total bkg estimated from data
 
 	if band == 'soft':
-		if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits') == True:
-			softbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits')
+		if before == False:
+			if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits') == True:
+				softbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits')
+			else:
+				softbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
 		else:
-			softbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
+				softbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
 		
 		bkg=softbkgmap[0].data
 	elif band == 'hard':
-		if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits') == True:
-			hardbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits')
+		if before == False:
+			if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits') == True:
+				hardbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_total.fits')
+			else:
+				hardbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_instr.fits')
 		else:
 			hardbkgmap = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_hard_bkgmap_instr.fits')
 		

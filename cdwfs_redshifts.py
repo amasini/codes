@@ -44,23 +44,23 @@ for i in range(32,36):
 
 # Open the matched master catalog (-cp version contains only one CDWFS source per line) 
 # 7338 sources 
-cat=fits.open('/Users/alberto/Downloads/nway-master/090419_trial-cp.fits')
+cat=fits.open('/Users/alberto/Downloads/nway-master/120119_trial-cp.fits')
 #cat=fits.open(wd+'CDWFS_I-Ks-3.6_v2.fits')
 data=cat[1].data
 cols=cat[1].columns
 names=cols.names
 pany=data['p_any']
-fluxs=data['CHA_FLUX_S']
-fluxh=data['CHA_FLUX_H']
-hr0=data['CHA_HR']
-ehr0p=data['CHA_E_HR_+']
-ehr0n=data['CHA_E_HR_-']
+fluxs=data['CDWFS_FLUX_S']
+fluxh=data['CDWFS_FLUX_H']
+hr0=data['CDWFS_HR']
+ehr0p=data['CDWFS_E_HR_+']
+ehr0n=data['CDWFS_E_HR_-']
 imag0=data['NDWFS_MAG_AUTO']
 kmag0=data['IBIS_MAG_BEST']
 spmag0=data['SDWFS_ch1_ma']
-sep0=data['Separation_NDWFS_CHA']
-sep0k=data['Separation_IBIS_CHA']
-sep0sp=data['Separation_SDWFS_CHA']
+sep0=data['Separation_NDWFS_CDWFS']
+sep0k=data['Separation_IBIS_CDWFS']
+sep0sp=data['Separation_SDWFS_CDWFS']
 #z=data['z']
 #zflag=data['zflag']
 cat.close()
@@ -72,7 +72,7 @@ print('The full CDWFS catalog has',len(data),'sources.')
 #	outcat.append(data[i])
 #outcat=np.array(outcat)
 
-p_any_cut=0.12 # 0.54 (0.12 as of 4-Sep-19) needed to have <5% false associations
+p_any_cut=0.13 # 0.54 (0.12 as of 4-Sep-19, 0.20 as of 15-Oct-19, 0.16 as of 30-Nov-19, 0.13 as of 01-Dec-19) needed to have <5% false associations
 
 imag=imag0[pany>p_any_cut]
 kmag=kmag0[pany>p_any_cut]
@@ -263,7 +263,7 @@ print(mat,'matched with Chung in',(time.time()-tin)/60.,'minutes.')
 
 
 # Write out catalog
-table = Table.read('/Users/alberto/Downloads/nway-master/090419_trial-cp.fits', format='fits')
+table = Table.read('/Users/alberto/Downloads/nway-master/120119_trial-cp.fits', format='fits')
 
 t1 = Column(name='zsp', data=z_out_sp)
 t2 = Column(name='zph_G+A', data=z_out_ga)
@@ -279,7 +279,7 @@ table.add_column(t4)
 table.add_column(t5)
 table.add_column(t6)
 table.add_column(t7)
-table.write(wd+'CDWFS_I-Ks-3.6_v2.fits', format='fits', overwrite='True')
+table.write(wd+'CDWFS_I-Ks-3.6_v120119.fits', format='fits', overwrite='True')
 sys.exit()
 '''
 vet_col=[]

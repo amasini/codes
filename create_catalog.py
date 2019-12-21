@@ -73,7 +73,8 @@ e_fluxh_lo=cat[1].data['E_FLUX_H_-']
 
 #cutf,cuts,cuth=7e-5,6e-4,4e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7338 srcs
 #cutf,cuts,cuth=1e-5,1e-5,1e-5 # These are the probability cuts in F,S,H bands at 99.5% rel -> 6295 srcs
-cutf,cuts,cuth=1e-4,1e-4,1e-4 # These are the probability cuts in F,S,H bands at 99% rel -> 7242 srcs
+#cutf,cuts,cuth=1e-4,1e-4,1e-4 # These are the probability cuts in F,S,H bands at 99% rel -> 7385 srcs
+cutf,cuts,cuth=10**(-4.6),10**(-4.4),10**(-4.2) # These are the probability cuts in F,S,H bands at 99% rel -> 6883 srcs
 
 #cutf,cuts,cuth=5e-5,5e-5,5e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7242 srcs
 
@@ -85,6 +86,8 @@ print(len(raf[probf<=cutf]))
 print(len(ras[probs<=cuts]))
 print(len(rah[probh<=cuth]))
 print('we should have a total of',len(raf[(probf<=cutf) | (probs<=cuts) | (probh<=cuth)]),'sources.')
+
+#sys.exit()
 
 count=0
 ra_u,dec_u,r90_u=[],[],[]

@@ -8,6 +8,7 @@ import scipy.stats.distributions
 import time
 from scipy.optimize import minimize
 from sklearn.utils import resample
+import seaborn as sns
 
 # Function to compute dN/dS given parameters
 def dnds(fx,params):
@@ -93,37 +94,50 @@ def boot_func(params):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-band='broad'
-cut = 5e-5
-bootstrap = True
-nboot = 20
+band='soft'
+bootstrap = False
+nboot = 10
+write_output = False
 
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
+if band == 'broad':
+	cut = 10**(-4.6)
+elif band == 'soft':
+	cut = 10**(-4.4)
+else:
+	cut = 10**(-4.2)
+
+# Simulation
+'''
+cat=fits.open(wd+'sim_indep/9cdwfs_'+band+'_sim_cat1_exp-psf.fits')
 data=cat[1].data
 if band == 'broad':
-	exp = data['EXP_F']
-	tot = data['TOT_F']
-	bkg = data['BKG_F']
-	cr = data['CR_F']
-	flux0 = data['FLUX_F']
-	eflux0 = data['E_FLUX_F_+']
-	prob = data['PROB_F']
+
+	exp = data['EXP']
+	tot = data['TOT']
+	bkg = data['BKG']
+	cr = data['CR']
+	flux0 = data['FLUX']
+	eflux0 = data['E_FLUX_+']
+	prob = data['PROB']
 elif band == 'soft':
-	exp = data['EXP_S']
-	tot = data['TOT_S']
-	bkg = data['BKG_S']
-	cr = data['CR_S']
-	flux0 = data['FLUX_S']
-	eflux0 = data['E_FLUX_S_+']
-	prob = data['PROB_S']
+
+	exp = data['EXP']
+	tot = data['TOT']
+	bkg = data['BKG']
+	cr = data['CR']
+	flux0 = data['FLUX']
+	eflux0 = data['E_FLUX_+']
+	prob = data['PROB']
 else:
-	exp = data['EXP_H']
-	tot = data['TOT_H']
-	bkg = data['BKG_H']
-	cr = data['CR_H']
-	flux0 = data['FLUX_H']
-	eflux0 = data['E_FLUX_H_+']
-	prob = data['PROB_H']
+
+	exp = data['EXP']
+	tot = data['TOT']
+	bkg = data['BKG']
+	cr = data['CR']
+	flux0 = data['FLUX']
+	eflux0 = data['E_FLUX_+']
+	prob = data['PROB']
+	
 cat.close()
 
 exp = exp[prob <= cut]
@@ -139,19 +153,122 @@ tot = tot[eflux0 != 0]
 bkg = bkg[eflux0 != 0]
 cr = cr[eflux0 != 0]
 flux0 = flux0[eflux0 != 0]
-prob = prob[eflux0 != 0]
+prob0 = prob[eflux0 != 0]
 eflux0 = eflux0[eflux0 != 0]
 
 print('Using',len(exp),'sources for the following computation.')
+'''
 
-#ra = ra[flux0 < 1e-13]
-#dec = dec[flux0 < 1e-13]
-#tot = tot[flux0 < 1e-13]
-#exp = exp[flux0 < 1e-13]
-#bkg = bkg[flux0 < 1e-13]
-#eflux0 = eflux0[flux0 < 1e-13]
-#prob = prob[flux0 < 1e-13]
-#flux0 = flux0[flux0 < 1e-13]
+# Real data
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
+data=cat[1].data
+if band == 'broad':
+	exp = data['EXP_F']
+	tot = data['TOT_F']
+	bkg = data['BKG_F']
+	cr = data['CR_F']
+	flux1 = data['FLUX_F']
+	eflux1 = data['E_FLUX_F_+']
+	prob = data['PROB_F']
+elif band == 'soft':
+	exp = data['EXP_S']
+	tot = data['TOT_S']
+	bkg = data['BKG_S']
+	cr = data['CR_S']
+	flux1 = data['FLUX_S']
+	eflux1 = data['E_FLUX_S_+']
+	prob = data['PROB_S']
+else:
+	ra =  data['RA']
+	dec = data['DEC']
+	exp = data['EXP_H']
+	tot = data['TOT_H']
+	bkg = data['BKG_H']
+	cr = data['CR_H']
+	flux1 = data['FLUX_H']
+	eflux1 = data['E_FLUX_H_+']
+	prob = data['PROB_H']
+	probf = data['PROB_F']
+	probs = data['PROB_S']
+cat.close()
+
+# Apply probability cut
+ra = ra[prob <= cut]
+dec = dec[prob <= cut]
+exp = exp[prob <= cut]
+tot = tot[prob <= cut]
+bkg = bkg[prob <= cut]
+cr = cr[prob <= cut]
+eflux1 = eflux1[prob <= cut]
+flux1 = flux1[prob <= cut]
+prob1 = prob[prob <= cut]
+probf = probf[prob <= cut]
+probs = probs[prob <= cut]
+
+# Be sure to exclude upper limits
+ra = ra[eflux1 != 0]
+dec = dec[eflux1 != 0]
+exp = exp[eflux1 != 0]
+tot = tot[eflux1 != 0]
+bkg = bkg[eflux1 != 0]
+cr = cr[eflux1 != 0]
+flux0 = flux1[eflux1 != 0]
+prob0 = prob1[eflux1 != 0]
+probf = probf[eflux1 != 0]
+probs = probs[eflux1 != 0]
+eflux0 = eflux1[eflux1 != 0]
+
+# Apply an exposure cut
+expo_cut = 9e4
+
+ra = ra[exp < expo_cut]
+dec = dec[exp < expo_cut]
+tot = tot[exp < expo_cut]
+bkg = bkg[exp < expo_cut]
+cr = cr[exp < expo_cut]
+flux0 = flux0[exp < expo_cut]
+prob0 = prob0[exp < expo_cut]
+probf = probf[exp < expo_cut]
+probs = probs[exp < expo_cut]
+eflux0 = eflux0[exp < expo_cut]
+exp = exp[exp < expo_cut]
+
+# Apply a flux cut - if I cut in flux like this, I lose information on the faint end of the lognlogs and on the flux break.
+'''
+flux_cut = 3e-15
+
+ra = ra[flux0 > flux_cut]
+dec = dec[flux0 > flux_cut]
+tot = tot[flux0 > flux_cut]
+bkg = bkg[flux0 > flux_cut]
+cr = cr[flux0 > flux_cut]
+prob0 = prob0[flux0 > flux_cut]
+probf = probf[flux0 > flux_cut]
+probs = probs[flux0 > flux_cut]
+eflux0 = eflux0[flux0 > flux_cut]
+exp = exp[flux0 > flux_cut]
+flux0 = flux0[flux0 > flux_cut]
+'''
+
+'''
+ra_faint = ra[flux0<3.0e-15]
+dec_faint = dec[flux0<3.0e-15]
+probf = probf[flux0<3.0e-15]
+probs = probs[flux0<3.0e-15]
+prob1 = prob0[flux0<3.0e-15]
+
+for j in range(len(prob1)):
+	print(ra_faint[j],dec_faint[j],probf[j],probs[j],prob1[j])
+
+w = open(wd+'cdwfs_faint_hard_sources.reg','w')
+for i in range(len(ra_faint)):
+	w.write('circle('+str(ra_faint[i])+'d, '+str(dec_faint[i])+'d, 10") \n')
+w.close()
+
+sys.exit()
+'''
+print(np.min(flux0),np.max(flux0))
+print('Using',len(exp),'sources for the following computation.')
 
 '''
 # Take the CDWFS catalog
@@ -209,32 +326,54 @@ prob = prob[flux0 < 1e-13]
 flux0 = flux0[flux0 < 1e-13]
 '''
 
-bins = np.logspace(-16,-11,50)
-plt.figure()
-plt.hist(flux0, bins = bins)
-plt.xscale('log')
-plt.show()
+bins00=np.logspace(np.log10(5e-17),np.log10(5e-12),50) # Check the limits here based on detected sources?
+centers00=list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
+centers00=np.array(centers00)
+ds00 = list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
+ds00 = np.array(ds00)
 
-#print('The source with a flux above 1E-12 in the soft band is at',ra[flux0 > 1e-12],dec[flux0 > 1e-12])
+# Take sensitivity curve made with Georgakakis method
+(rawf,rawa)=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90_cutexp5e4.dat',unpack=True)
+sens=np.interp(centers00,rawf,rawa)
 
-# Civano+16 figure 14, top left panel
-if band =='soft':
-	(civf,civn)=np.genfromtxt(wd+'civano_05-2keV_lognlogs.dat',unpack=True)
-else:
-	(civf,civn)=np.genfromtxt(wd+'civano_2-10keV_lognlogs.dat',unpack=True)
-	(civf2,civn2)=np.genfromtxt(wd+'civano_lognlogs_hard.txt',unpack=True)
 
-bins00=np.logspace(np.log10(5e-17),np.log10(5e-12),50) # Check the limits here based on detected sources
-#bins00=np.logspace(np.log10(np.min(flux0)),np.log10(np.max(flux0)),50) 
+# EASY WAY
+'''
+bins00=np.logspace(np.log10(9e-16),np.log10(2e-12),10) # Check the limits here based on detected sources
 centers00=list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
 centers00=np.array(centers00)
 ds00 = list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
 ds00 = np.array(ds00)
 
 # take sensitivity curve made with Georgakakis method
-(rawf,rawa)=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90_5e-5.dat',unpack=True)
+(rawf,rawa)=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90.dat',unpack=True)
 sens=np.interp(centers00,rawf,rawa)
+part1,bc = np.histogram(flux0, bins = bins00)
+part1b=part1/sens
 
+cumpart0=list(reversed(np.cumsum(list(reversed(part1b)))))
+
+geos,geon = np.genfromtxt(wd+'geo_lognlogs_'+band+'.txt',unpack=True)
+#geos= 6.887E-01*geos # convert from 2-10 to 2-7, Gamma = 1.4
+if band == 'hard':
+	geos= 0.75*geos # convert from 2-10 to 2-7, Gamma = 1.8
+elif band == 'broad':
+	geos = 8.455E-01*geos # convert from 0.5-10 to 0.5-7, Gamma = 1.8
+	
+plt.figure()
+plt.plot(geos,geon,'k-',ms=10,label='Georgakakis')
+plt.plot(centers00,cumpart0,'ro',ms=10,label='CDWFS')
+plt.xlabel(r''+band+' band flux (erg cm$^{-2}$ s$^{-1}$)')
+plt.ylabel(r'$N(>S)$ (deg$^{-2}$)')
+plt.xscale('log')
+plt.yscale('log')
+#plt.axis([5e-18,1e-12,0.1,200])
+plt.legend()
+plt.show()
+sys.exit()
+'''
+
+# Check the interpolation
 #plt.figure()
 #plt.plot(rawf,rawa,'ko')
 #plt.plot(centers00,sens,'r+')
@@ -252,6 +391,7 @@ if bootstrap == True:
 	ecf = flux0/np.array(cr)
 
 	pars=[bkg,ecf,exp,tot]
+	
 	data = build_struct(pars)
 	bootstrap_dnds,p0,p1,p2,bootstrap_lognlogs=[],[],[],[],[]
 	print('Starting bootstrap...')
@@ -315,9 +455,9 @@ if bootstrap == True:
 	efb=np.std(p2)
 
 	print('/'*10)
-	print(b1,eb1/np.sqrt(nboot))
-	print(b2,eb2/np.sqrt(nboot))
-	print(fb,efb/np.sqrt(nboot))
+	print(b1,eb1)
+	print(b2,eb2)
+	print(fb,efb)
 	print('/'*10)
 
 	bfit=dnds(centers00,[b1,b2,fb])
@@ -353,41 +493,26 @@ if bootstrap == True:
 	plt.subplots_adjust(hspace=0)
 	plt.show()
 	'''
-	#cumpart0=mu_lognlogs*(centers00/1e-14)**1.5
-	#e_cumpart0 = sigma_lognlogs*(centers00/1e-14)**1.5
 	
 	cumpart0=mu_lognlogs
 	e_cumpart0 = sigma_lognlogs
 	
-	w=open(wd+'cdwfs_lognlogs_'+band+'.dat','w')
-	for jj in range(len(cumpart0)):
-		w.write(str(centers00[jj])+' \t '+str(cumpart0[jj])+' \t '+str(e_cumpart0[jj])+'\n')
-	w.close()
+	if write_output == True:
+		w=open(wd+'cdwfs_dnds_'+band+'_cutexp8e4.dat','w')
+		for jj in range(len(mu_dnds)):
+			w.write(str(centers00[jj])+' \t '+str(mu_dnds[jj])+' \t '+str(sigma_dnds[jj])+'\n')
+		w.close()
 	
-	geos,geon = np.genfromtxt(wd+'geo_lognlogs_'+band+'.txt',unpack=True)
-	#geos= 6.887E-01*geos # convert from 2-10 to 2-7, Gamma = 1.4
-	if band == 'hard':
-		geos= 0.75*geos # convert from 2-10 to 2-7, Gamma = 1.8
-	elif band == 'broad':
-		geos = 8.455E-01*geos # convert from 0.5-10 to 0.5-7, Gamma = 1.8
+		w=open(wd+'cdwfs_dnds_bfit-pars_'+band+'_cutexp8e4.dat','w')
+		w.write('Beta1 \t eBeta1 \t Beta2 \t eBeta2 \t Fb \t eFb \n')
+		w.write(str(b1)+' \t '+str(eb1)+' \t '+str(b2)+' \t '+str(eb2)+' \t '+str(fb)+' \t '+str(efb)+'\n')
+		w.close()
 	
-	plt.figure()
-	plt.errorbar(centers00,cumpart0,yerr=e_cumpart0,color='r',marker='.',ms=10,label='CDWFS')
-	plt.plot(geos,geon,'k-',ms=10,label='Georgakakis')
-	#plt.plot(civf,civn,'gs',ms=10,label='Civano')
-	if band == 'hard':
-		plt.plot(civf2,civn2,'cs',ms=10)
-	plt.xlabel(r''+band+' band flux (erg cm$^{-2}$ s$^{-1}$)')
-	
-	#plt.ylabel(r'$N(>S)\times S^{1.5}$ (deg$^{-2}$)')
-	#plt.axis([5e-17,1e-12,0.1,400])
-	plt.ylabel(r'$N(>S)$ (deg$^{-2}$)')
-	plt.axis([5e-17,1e-12,0.1,3e4])
-	
-	plt.xscale('log')
-	plt.yscale('log')
-	plt.legend()
-	plt.show()
+		w=open(wd+'cdwfs_lognlogs_'+band+'_cutexp8e4.dat','w')
+		for jj in range(len(mu_lognlogs)):
+			w.write(str(centers00[jj])+' \t '+str(mu_lognlogs[jj])+' \t '+str(sigma_lognlogs[jj])+'\n')
+		w.close()
+
 else:
 	
 	tin=time.time()
@@ -427,25 +552,28 @@ else:
 	part1c=list(part1b[i]/(bins00[i+1]-bins00[i]) for i in range(len(bins00)-1))
 
 	# logN-logS
-	#cumpart1=list(reversed(np.cumsum(list(reversed(part1b)))))
+	cumpart0=list(reversed(np.cumsum(list(reversed(part1b)))))
 
-	######################################
-	
-	#flux1 = flux0[prob < 2e-6]
-	#part1,bc = np.histogram(flux0, bins = bins00)
-	#part1b=part1/sens
 
-	cumpart0=list(reversed(np.cumsum(list(reversed(part1b)))))*(centers00/1e-14)**1.5
+geos,geon = np.genfromtxt(wd+'geo_lognlogs_'+band+'.txt',unpack=True)
+if band == 'hard':
+	geos= 0.75*geos # convert from 2-10 to 2-7, Gamma = 1.8
+	#geos= 6.887E-01*geos # convert from 2-10 to 2-7, Gamma = 1.4
+elif band == 'broad':
+	geos = 8.455E-01*geos # convert from 0.5-10 to 0.5-7, Gamma = 1.8
 
-	plt.figure()
-	plt.plot(centers00,cumpart0,'ko',ms=10,label='CDWFS')
-	plt.plot(civf,civn,'gs',ms=10,label='Civano')
-	if band == 'hard':
-		plt.plot(civf2,civn2,'cs',ms=10)
-	plt.xlabel(r''+band+' band flux (erg cm$^{-2}$ s$^{-1}$)')
-	plt.ylabel(r'$N(>S)\times S^{1.5}$ (deg$^{-2}$)')
-	plt.xscale('log')
-	plt.yscale('log')
-	#plt.axis([5e-18,1e-12,0.1,200])
-	plt.legend()
-	plt.show()
+plt.figure()
+if bootstrap == 'True':
+	plt.errorbar(centers00,cumpart0,yerr=e_cumpart0,color='r',marker='.',ms=10,label='CDWFS')
+else:
+	plt.plot(centers00,cumpart0,color='r',marker='.',ms=10,label='CDWFS')
+plt.plot(geos,geon,'k-',ms=10,label='Georgakakis')
+plt.xlabel(r''+band+' band flux (erg cm$^{-2}$ s$^{-1}$)')
+
+plt.ylabel(r'$N(>S)$ (deg$^{-2}$)')
+plt.axis([5e-17,1e-12,0.1,3e4])
+plt.xscale('log')
+plt.yscale('log')
+plt.legend()
+plt.show()
+

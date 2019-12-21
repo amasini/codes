@@ -18,7 +18,7 @@ def distance(pointa, pointb):
 
 wd="/Users/alberto/Desktop/XBOOTES/"
 
-simfolder = 'sim_indep/'
+simfolder = 'sim_indep_12-Dec-19/'
 
 band=str(sys.argv[1])
 bandbkg=str(sys.argv[1]) # this is just for the soft band, use 'broad' and 'hard' for the other bands

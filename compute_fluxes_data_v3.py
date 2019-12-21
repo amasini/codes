@@ -22,7 +22,7 @@ t_in=time.time()
 for band in ['hard']:
 
 	#take catalog of detected sources - output from wavdetect
-	dat=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_src_exp-psf.fits')
+	dat=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_src_exp-psf2.fits')
 	src_ra=dat[1].data['RA']
 	src_dec=dat[1].data['DEC']
 	src_sign=dat[1].data['SRC_SIGNIFICANCE']
@@ -117,7 +117,7 @@ for band in ['hard']:
 
 	#write catalog
 	cat=Table([src_ra,src_dec,out_prob,out_r90,out_tot,out_back,out_net,out_enetp,out_enetn,out_exp,out_cr,out_ecrp,out_ecrn,out_flux,out_efluxp,out_efluxn],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
-	cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0_exp-psf.fits',format='fits',overwrite=True)
+	cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0_exp-psf2.fits',format='fits',overwrite=True)
 
 t_out=time.time()
 print((t_out-t_in)/60.,'Minutes for the loop')

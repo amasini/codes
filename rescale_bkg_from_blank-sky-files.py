@@ -5,8 +5,7 @@ from astropy.io import fits
 import os
 import matplotlib.pyplot as plt
 import random
-from scipy.stats import norm
-import matplotlib.mlab as mlab
+import scipy.stats
 
 def gauss(x,mu,sigma):
 	g=np.exp(-(x-mu)**2/(2*sigma**2))
@@ -14,9 +13,9 @@ def gauss(x,mu,sigma):
 	
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-band='hard'
-band2='hard'
-band3='2to7'
+band='soft'
+band2='0.5-2'
+band3='05to2'
 
 obs=np.genfromtxt(wd+'data_counts.dat',unpack=True, usecols=1,dtype='str')
 diff1,diff2,exp=[],[],[]
@@ -42,11 +41,27 @@ for i in range(len(obs)):
 	#image=fits.open(wd+'data/'+obs[i]+'/repro_new_asol/acisf'+stem+'_repro_9to12keV.img') # real 9-12 keV image
 	#img=image[0].data
 	#header=image[0].header
-	
 	#hh=fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_expomap.fits')
 	#header=hh[0].header
+
+	if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits') == True:
+		image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits')
+		out=image[0].data
+		image.close()
+		
+		image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits')
+		out2=image[0].data
+		image.close()
+		
+	else:
+		image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits')
+		out=image[0].data
+		image.close()
+	
+		out2 = out
 	
 	
+	'''
 	if band == 'soft':
 		if os.path.isfile(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits') == True:
 			image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_total.fits')
@@ -55,11 +70,9 @@ for i in range(len(obs)):
 			
 			#hdu = fits.PrimaryHDU(out,header=header)
 			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
-			
 			#image = fits.open(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_0.5-2_bkgmap_instr.fits')
 			#out=image[0].data
 			#image.close()
-			
 			#hdu = fits.PrimaryHDU(out,header=header)
 			#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
 			
@@ -99,12 +112,11 @@ for i in range(len(obs)):
 		
 		#hdu = fits.PrimaryHDU(out,header=header)
 		#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
-	
+	'''
 	#out=image[0].data
 	
 	#hdu = fits.PrimaryHDU(out,header=header)
 	#hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_total.fits',overwrite=True)
-	
 	
 	# Rescale the counts for the total number of pixels in Chandra's FOV (16.9 arcmin^2)
 	cts2=cts*(4247721./area) # This is the total bkg estimated from data
@@ -136,13 +148,16 @@ for i in range(len(obs)):
 	hdu.writeto(wd+'data/'+obs[i]+'/repro_new_asol/out/acisf'+stem+'_'+band2+'_bkgmap_instr.fits',overwrite=True)
 	#####################
 	'''
-	#print(cts2,np.sum(out))
 	
 	diff=cts2-np.sum(out) # Difference between total bkg and instrumental one
 	#e_diff=np.sqrt(cts2+(F*np.sum(img))) # 1sigma unc on difference
 	e_diff=np.sqrt(cts2+np.sum(out)) # 1sigma unc on difference
 	
+	diff0=cts2-np.sum(out2) # Difference between total bkg and instrumental one
+	e_diff0=np.sqrt(cts2+np.sum(out2)) # 1sigma unc on difference
+	
 	diff1.append(diff/e_diff)
+	diff2.append(diff0/e_diff0)
 	
 	'''
 	if band == 'soft':
@@ -294,18 +309,17 @@ for i in range(len(obs)):
 #plt.savefig(wd+'cdwfs_bkg_'+band+'_scalingfactor.pdf',format='pdf')
 #plt.show()
 
-(mu, sigma) = norm.fit(diff1)
+(mu, sigma) = scipy.stats.norm.fit(diff1)
 print(mu,sigma)
 
-#print(np.min(diff2),np.max(diff2))
 plt.figure()
-n, bins, patches = plt.hist(diff1,bins=20,normed=1)
-# add a 'best fit' line
-y = mlab.normpdf( bins, mu, sigma)
+n, bins, patches = plt.hist(diff1,bins=20,density=True, label=r'($B_{\rm Data} - Bkg_{\rm Tot}$)')
+plt.hist(diff2,bins=20,density=True, linestyle='dashed', label=r'($B_{\rm Data} - Bkg_{\rm Instr}$)')
+y = scipy.stats.norm.pdf(bins, mu, sigma, label ='Gaussian Fit')
 l = plt.plot(bins, y, 'r--', linewidth=2)
-#plt.plot(exp,diff1,'k.')
-#plt.xscale('log')
-plt.xlabel('Sigma deviation (Bkg_fromdata - Bkg_instr)')
-plt.ylabel('N')
-plt.savefig(wd+'cdwfs_bkg_'+band+'.pdf',format='pdf')
-#plt.show()
+plt.xlabel('Sigma deviation')
+plt.ylabel('Fraction')
+plt.legend()
+plt.tight_layout()
+plt.show()
+#plt.savefig(wd+'cdwfs_bkg_'+band+'.pdf',format='pdf')

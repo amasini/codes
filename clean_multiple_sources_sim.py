@@ -32,7 +32,7 @@ def choose_worst(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-simfolder = 'sim_indep/'
+simfolder = 'sim_indep_12-Dec-19/'
 
 band=str(sys.argv[1])
 

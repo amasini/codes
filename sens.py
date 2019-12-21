@@ -19,30 +19,22 @@ wd='/Users/alberto/Desktop/XBOOTES/'
 what='cdwfs'
 band='hard'
 rpsf='r90'
+logcut=-4.2
+pthresh=10**(logcut)
 
 rebin_factor=4.
 scale=(0.492/3600.)*rebin_factor #pixel size in deg
 arcsec2pix=scale*3600.
 ###################################
 
-print('Doing',what,'in the',band,'band, using '+rpsf)
+print('Doing',what,'in the',band,'band, using '+rpsf+' and '+str(round(logcut,1)))
 
-'''
-if band == 'broad':
-	pthresh=10**(-3.5)
-elif band == 'soft':
-	pthresh=10**(-3.5)
-else:
-	pthresh=1e-4
-'''
-pthresh=1e-5
 
 ### Take expo map (exposure has average exposure in 4x4 pixels in s)
 expmap=fits.open(wd+'new_mosaics_detection/'+what+'_'+band+'_expomap_4reb.fits')
 exp=expmap[0].data
-#expmap=fits.open(wd+'data/3596/repro_new_asol/out/acisf03596_broad_expomap_4reb.fits')
-#exp=expmap[0].data/16.0
 exp[np.isnan(exp)]=0.0 #put nans to 0
+#exp[exp > 9e4] = 0.0
 expmap.close()
 
 ### Take average psfmap squared (in arcsec)
@@ -96,9 +88,9 @@ bkg2=bkg*(sourcearea/pixarea)
 
 pcts=np.zeros_like(bkg2,dtype=float)
 
-tin=time.time()
 # GAMMA INCOMPLETE METHOD
 # Given background and threshold probability, find how many counts are needed to have P < threhsold
+tin=time.time()
 tot=np.arange(1,101)
 f=np.logspace(np.log10(1e-17),np.log10(2e-10),101)
 totprob=np.zeros_like(f)
@@ -106,27 +98,67 @@ for i in range(bkg2.shape[0]):
 	for j in range(bkg2.shape[1]):
 		if exp[i][j] != 0.0:
 			trial=gammainc(tot,bkg2[i][j])
-			
+
 			pcts[i][j]=np.min(tot[trial < pthresh])
-			
+
 			T=bkg2[i][j]+f*exp[i][j]/ecf[i][j]*fpsf
-			
+
 			prob=gammainc(pcts[i][j],T)
 			totprob=totprob+prob
 		else:
 			pcts[i][j]=0
-print((time.time()-tin)/60.,'minutes for the map.')
+				
+print((time.time()-tin)/60.,'minutes for the georkakais map.')
 
 totprob=totprob*2.988e-7 # convert to area (1 4x4 pix is 2.988e-7 deg2)
 
 ### Write out result
-w=open(wd+what+'_'+band+'_sens_georgakakis_r90_1e-5.dat','w')
+w=open(wd+what+'_'+band+'_sens_'+str(round(logcut,1))+'_geo.dat','w')
 for j in range(len(f)):
 	w.write(str(f[j])+' \t '+str(totprob[j])+'\n')
 w.close()
 
+#totproblog=np.log10(totprob)
+#plt.figure()
+#plt.plot(f,totproblog,'k-')
+#plt.xscale('log')
+#plt.show()
+
+# FOLLOWING CIVANO, EASIER METHOD
+# Given background and threshold probability, find how many counts are needed to have P < threhsold
+tin=time.time()
+tot=np.arange(1,101)
+f=np.logspace(np.log10(1e-17),np.log10(2e-10),101)
+fcen = list((f[i+1]+f[i])/2. for i in range(len(f)-1))
+fcen = np.array(fcen)
+#totprob=np.zeros_like(f)
+for i in range(bkg2.shape[0]):
+	for j in range(bkg2.shape[1]):
+		if exp[i][j] != 0.0:
+			trial=gammainc(tot,bkg2[i][j])
+			
+			pct = np.min(tot[trial < pthresh])
+			
+			pcts[i][j] = ((pct - bkg2[i][j])*ecf[i][j])/(exp[i][j]*fpsf)
+			
+		else:
+			pcts[i][j]=0
+			
+print((time.time()-tin)/60.,'minutes for the normal map.')
+
+a,b = np.histogram(pcts, bins = f)
+totprob = np.cumsum(a)
+
+totprob=totprob*2.988e-7 # convert to area (1 4x4 pix is 2.988e-7 deg2)
+
+### Write out result
+w=open(wd+what+'_'+band+'_sens_'+str(round(logcut,1))+'_civ.dat','w')
+for j in range(len(fcen)):
+	w.write(str(fcen[j])+' \t '+str(totprob[j])+'\n')
+w.close()
+
 totproblog=np.log10(totprob)
 plt.figure()
-plt.plot(f,totproblog,'k-')
+plt.plot(fcen,totproblog,'k-')
 plt.xscale('log')
 plt.show()
