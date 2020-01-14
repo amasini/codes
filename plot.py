@@ -68,51 +68,104 @@ def sigmoid(x,m,b):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-cutf,cuts,cuth=10**(-4.6),10**(-4.4),10**(-4.2)
+#### CORRECT THE BUG OF THE UPPERLIMITS - IF SOURCE HAS PROB < THRESHOLD, COMPUTE NORMAL CR AND FLUX
 
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
+cutf,cuts,cuth=10**(-4.63),10**(-4.57),10**(-4.40)
+
+cat = fits.open(wd+'CDWFS_I-Ks-3.6_v200109-cp.fits')
 dat=cat[1].data
-ra=dat['RA']
-probf=dat['PROB_F']
-efluxfp=dat['E_FLUX_F_+']
 
-probs=dat['PROB_S']
-efluxsp=dat['E_FLUX_S_+']
+ra=dat['CDWFS_RA']
+probf=dat['CDWFS_PROB_F']
+efluxfp=dat['CDWFS_E_FLUX_F_+']
+totf = dat['CDWFS_TOT_F']
+	
+probs=dat['CDWFS_PROB_S']
+efluxsp=dat['CDWFS_E_FLUX_S_+']
+	
+probh=dat['CDWFS_PROB_H']
+efluxhp=dat['CDWFS_E_FLUX_H_+']
 
-probh=dat['PROB_H']
-efluxhp=dat['E_FLUX_H_+']
-
-print(len(ra[(probf<cutf) & (efluxfp==0.0)]))
-print(len(ra[(probs<cuts) & (efluxsp==0.0)]))
-print(len(ra[(probh<cuth) & (efluxhp==0.0)]))
+print(np.min(totf[efluxfp==0.0]),np.max(totf[efluxfp==0.0]))
+plt.figure()
+plt.hist(totf[efluxfp==0.0])
+plt.show()
 sys.exit()
 
-#### WRITE OUT THE XBOOTES SOURCES WE MISS AND THE ONES WITH MULTIPLE CDWFS COUNTERPART
-'''
-kcat=fits.open(wd+'xbootes_kenter+05.fits')
-ra_k=kcat[1].data['RAJ2000']
-dec_k=kcat[1].data['DEJ2000']
-name_k=kcat[1].data['CXOXB']
-kcat.close()
+print(len(ra[(efluxfp==0.0)]))
+#print(dat[(probf<cutf) & (efluxfp==0.0)])
+print(len(ra[(efluxsp==0.0)]))
+print(len(ra[(efluxhp==0.0)]))
 
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
-xb_count = cat[1].data['XB_ID']
+sys.exit()
+
+band = 'H'
+if band == 'F':
+	cutf = 10**(-4.63)
+elif band == 'S':
+	cutf = 10**(-4.57)
+else:
+	cutf = 10**(-4.40)
+
+with fits.open(wd+'CDWFS_I-Ks-3.6_v200109-cp.fits', mode='update') as cat:
+    # Change something in hdul.
+	dat=cat[1].data
+
+	ra=dat['CDWFS_RA']
+	probf=dat['CDWFS_PROB_'+band]
+	efluxfp=dat['CDWFS_E_FLUX_'+band+'_+']
+
+	old_net = dat['CDWFS_NET_'+band]
+	old_enetp = dat['CDWFS_E_NET_'+band+'_+']
+	old_enetn = dat['CDWFS_E_NET_'+band+'_-']
+	old_cr = dat['CDWFS_CR_'+band]
+	old_ecrp = dat['CDWFS_E_CR_'+band+'_+']
+	old_ecrn = dat['CDWFS_E_CR_'+band+'_-']
+	old_flux = dat['CDWFS_FLUX_'+band]
+	old_efluxn = dat['CDWFS_E_FLUX_'+band+'_-']
+	old_efluxp = dat['CDWFS_E_FLUX_'+band+'_+']
+
+	cts = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_TOT_'+band]
+	bkg = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_BKG_'+band]
+	av_exp = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_EXP_'+band]
+	av_ecf = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_FLUX_'+band]/dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_CR_'+band]
+
+	e_cts_p=1+np.sqrt(cts+0.75) # Gehrels+86 1sigma errors
+	e_cts_n=np.sqrt(cts-0.25)
+	e_bkg_p=1+np.sqrt(bkg+0.75)
+
+	e_bkg_n=np.zeros_like(bkg)
+	e_bkg_n[bkg >= 0.25] = np.sqrt(bkg[bkg >= 0.25]-0.25)
+
+	net=cts-bkg
+	e_net_p=np.sqrt(e_cts_p**2+e_bkg_p**2) # Propagate the errors
+	e_net_n=np.sqrt(e_cts_n**2+e_bkg_n**2)
+
+	cr=net*1.1/av_exp
+	e_cr_p=e_net_p*1.1/av_exp # Propagate the errors
+	e_cr_n=e_net_n*1.1/av_exp
+
+	flux=cr*av_ecf
+	e_flux_p=e_cr_p*av_ecf
+	e_flux_n=e_cr_n*av_ecf
+	
+	old_net[(probf<cutf) & (efluxfp==0.0)] = net
+	old_enetp[(probf<cutf) & (efluxfp==0.0)] = e_net_p
+	old_enetn[(probf<cutf) & (efluxfp==0.0)] = e_net_n
+
+	old_cr[(probf<cutf) & (efluxfp==0.0)] = cr
+	old_ecrp[(probf<cutf) & (efluxfp==0.0)] = e_cr_p
+	old_ecrn[(probf<cutf) & (efluxfp==0.0)] = e_cr_n
+
+	old_flux[(probf<cutf) & (efluxfp==0.0)] = flux
+	old_efluxn[(probf<cutf) & (efluxfp==0.0)] = e_flux_n
+	old_efluxp[(probf<cutf) & (efluxfp==0.0)] = e_flux_p
+
+	cat.flush()  # changes are written back to original.fits
+
 cat.close()
 
-xb_count0 = xb_count[xb_count != '0']
-print(len(xb_count0))
-xb_unique = np.unique(xb_count0)
-print(len(xb_unique))
 sys.exit()
-
-w=open(wd+'xbootes_missing.dat','w')
-w.write('CXOXB \t RA \t DEC\n')
-for i in range(len(ra_k)):	
-	if len(xb_count[xb_count == name_k[i]]) == 0:
-		w.write(str(name_k[i])+' \t '+str(ra_k[i])+' \t '+str(dec_k[i])+'\n')
-w.close()
-sys.exit()
-'''
 
 #### HOW MANY XBOOTES SOURCES WE GET WITH A GIVEN PROBABILITY CUT?
 '''
@@ -263,7 +316,7 @@ sys.exit()
 '''
 
 #### ANALYSIS FOR ADI FOORD
-
+'''
 cat=fits.open(wd+'CDWFS_I-Ks-3.6_v120119.fits')
 data=cat[1].data
 r90=data['CDWFS_R90_F']
@@ -309,6 +362,7 @@ plt.xlabel('Redshift', fontsize=12)
 plt.tight_layout()
 plt.show()
 sys.exit()
+'''
 
 #### CREATE PDF FOR GAMMA AND CHECK IT
 '''
@@ -706,46 +760,49 @@ sys.exit()
 '''
 
 #### SENSITIVITY, COMPARE GEORGAKAKIS WITH SIMULATIONS
+
 band = ['broad','soft','hard']
-logcut=['-4.6','-4.4','-4.2']
-type=['sim_indep_22-Nov-19']
+logcut=['-4.6','-4.6','-4.4']
+type=['sim_indep_22-Nov-19','sim_indep_06-Dec-19','sim_indep_12-Dec-19']
 f,ax=plt.subplots(1,len(band),sharey=True,sharex=True,figsize=[15,5])
 for j in range(len(band)):
+	
+	# Take the analytical sensitivity
+	fl_geo,ar_geo=np.genfromtxt(wd+'cdwfs_'+band[j]+'_sens_'+logcut[j]+'_geo.dat',unpack=True)
+	fl_civ,ar_civ=np.genfromtxt(wd+'cdwfs_'+band[j]+'_sens_'+logcut[j]+'_civ.dat',unpack=True)
+	
+	# Transform to logarithms
+	x_geo=np.log10(fl_geo)
+	x_civ=np.log10(fl_civ)
+	
+	ax[j].plot(x_geo,ar_geo,color='k',linestyle='-',linewidth=3,label='Analytical')
+	#ax[j].plot(x_civ,ar_civ,color='gray',linestyle='--',linewidth=3,label='No Eddington Bias')
+	ax[j].annotate(band[j].capitalize(),xy=(-12.95,1), fontsize=12)
 	for i in range(len(type)):
 	
+		# Take the rescaled completeness computed from simulations
 		centers01,ratio3,eratio3=np.genfromtxt(wd+'cdwfs_'+band[j]+'_sens_'+logcut[j]+'_'+type[i]+'.dat',unpack=True)
-		fl2,ar2=np.genfromtxt(wd+'cdwfs_'+band[j]+'_sens_'+logcut[j]+'_geo.dat',unpack=True)
-		fl,ar=np.genfromtxt(wd+'cdwfs_'+band[j]+'_sens_'+logcut[j]+'_civ.dat',unpack=True)
-		
+
 		eratio3[np.isnan(eratio3)]=ratio3[np.isnan(eratio3)]
 		ratio3[np.isnan(ratio3)]=9.3
-		#uplims=np.zeros(len(ratio3))
-		#uplims[eratio3>=ratio3]=1
-		#print(uplims)
-		
-		ar2_sup=ar2*2.
-		ar2_inf=ar2/2.
-		
+
+		# Transform to logarithms
 		x0=np.log10(centers01)
-		x=np.log10(fl)
-		x2=np.log10(fl2)
-				
-		ax[j].plot(x2,ar2,color='k',linestyle='-',linewidth=3,label='Analytical')
-		#ax[j].plot(x,ar,color='k',linestyle='--',linewidth=3,label='No Eddington bias')
-		#ax[j].fill_between(x2,ar2_inf,ar2_sup,color='gray',alpha=0.5)
 		
-		ax[j].errorbar(x0,ratio3,yerr=eratio3,color='C'+str(i+2),marker='o',linestyle='-',linewidth=2,label='Simulation')
+		ax[j].errorbar(x0,ratio3,yerr=eratio3,color='C'+str(i+2),marker='o',linestyle='-',linewidth=2,label='Simulations '+str(i+1))
 
 		ax[j].set_xlabel(r'Log(Flux/(erg cm$^{-2}$ s$^{-1}$))',fontsize=15)
+		ax[j].axis([-16,-12,1e-3,10])
 		#ax[j].set_yscale('log')
-		ax[j].axis([-16.5,-13,1e-3,10])
 		#ax[j].axhline(y=0.08,color='gray',linestyle='dashed')
 		#ax[j].annotate('ACIS-I FoV', color='gray',xy=(-13.7,0.1))
-		#ax[j].annotate(band[j].capitalize(),xy=(-13.4,1.5e-3))
 		
 		nbins = len(ax[j].get_xticklabels()) # added 
 		ax[j].xaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='upper')) # added 
+		ax[j].tick_params(axis='both',direction='in', top=True, right=True, labelsize=12)
+		ax[j].grid()
 		
+
 ax[0].set_ylabel(r'Area (deg$^2$)',fontsize=15)
 ax[0].tick_params(axis='y',labelsize=13)
 #ax[0].set_yticks([1e-3,1e-2,0.1,1,10])
@@ -753,8 +810,8 @@ ax[0].tick_params(axis='y',labelsize=13)
 plt.legend()
 plt.tight_layout()
 plt.subplots_adjust(wspace=0)
-plt.show()
-#plt.savefig(wd+'sens.pdf',format='pdf')
+#plt.show()
+plt.savefig(wd+'sens.pdf',format='pdf')
 sys.exit()
 
 
@@ -1527,15 +1584,15 @@ sys.exit()
 '''
 
 #### BREAKDOWN OF THE COMPOSITION OF THE X-RAY CATALOG IN F,S,H COMBINATIONS
-'''
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
+
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat2_exp-psf.fits')
 ra=cat[1].data['RA']
 dec=cat[1].data['DEC']
 r90=cat[1].data['R90_S']
 probf=cat[1].data['PROB_F']
 probs=cat[1].data['PROB_S']
 probh=cat[1].data['PROB_H']
-cutf,cuts,cuth=10**(-4.5),10**(-4.3),10**(-4.5)
+cutf,cuts,cuth=10**(-4.63),10**(-4.57),10**(-4.40)
 fsh,fs,fh,sh,f,s,h=0,0,0,0,0,0,0
 for i in range(len(probf)):
 	if (probf[i] != 9999.0 and probf[i] <= cutf):
@@ -1572,7 +1629,7 @@ print('h:',h)
 print('Total of combinations:',fsh+fs+fh+sh+f+s+h)
 #print(len(totf),len(totf[totf>=30.]))
 sys.exit()
-'''
+
 
 #### TEST THE INTERPOLATION OF THE GAMMA - CONVERSION FACTOR AND PLOT THE GAUSSIAN DISTRIB
 '''

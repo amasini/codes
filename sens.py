@@ -19,7 +19,7 @@ wd='/Users/alberto/Desktop/XBOOTES/'
 what='cdwfs'
 band='hard'
 rpsf='r90'
-logcut=-4.2
+logcut=-4.40
 pthresh=10**(logcut)
 
 rebin_factor=4.
@@ -27,7 +27,7 @@ scale=(0.492/3600.)*rebin_factor #pixel size in deg
 arcsec2pix=scale*3600.
 ###################################
 
-print('Doing',what,'in the',band,'band, using '+rpsf+' and '+str(round(logcut,1)))
+print('Doing',what,'in the',band,'band, using '+rpsf+' and '+str(round(logcut,2)))
 
 
 ### Take expo map (exposure has average exposure in 4x4 pixels in s)

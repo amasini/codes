@@ -30,10 +30,10 @@ def choose_worst(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-for band in ['hard']:
+for band in ['broad','soft','hard']:
 
 	#take catalog of wavdetect sources (wavdetect, full mosaic 4x4, 5e-5, only bkgmap)
-	cat1=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0_exp-psf2.fits')
+	cat1=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_cat0_200113.fits')
 
 	ra_d=cat1[1].data['RA']
 	dec_d=cat1[1].data['DEC']
@@ -127,7 +127,7 @@ for band in ['hard']:
 	#write catalog
 	cat=Table([newpool[:,0],newpool[:,1],newpool[:,2],newpool[:,3],newpool[:,4],newpool[:,5],newpool[:,6],newpool[:,7],newpool[:,8],newpool[:,9],newpool[:,10],newpool[:,11],newpool[:,12],newpool[:,13],newpool[:,14],newpool[:,15]],names=('RA','DEC','PROB','AV_R90','TOT','BKG','NET','E_NET_+','E_NET_-','EXP','CR','E_CR_+','E_CR_-','FLUX','E_FLUX_+','E_FLUX_-'))
 
-	cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat1_exp-psf2.fits',format='fits',overwrite=True)
+	cat.write(wd+'new_mosaics_detection/cdwfs_'+band+'_cat1_200113.fits',format='fits',overwrite=True)
 
 	print(len(pool), 'in input')
 	print(len(newpool), 'in output')

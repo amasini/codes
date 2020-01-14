@@ -18,6 +18,10 @@ def distance(pointa, pointb):
 
 wd="/Users/alberto/Desktop/XBOOTES/"
 
+print('There is a way faster version since when I discovered that dmextract accepts successfully stacks of regions.')
+print('See compute_fluxes_data_v4.py')
+sys.exit()
+
 t_in=time.time()
 for band in ['hard']:
 

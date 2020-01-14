@@ -9,15 +9,40 @@ from astropy.table import Table
 
 wd = '/Users/alberto/Desktop/XBOOTES/'
 
+#### Part 0: WRITE OUT THE XBOOTES SOURCES WE MISS AND THE ONES WITH MULTIPLE CDWFS COUNTERPART
+'''
+kcat=fits.open(wd+'xbootes_kenter+05.fits')
+ra_k=kcat[1].data['RAJ2000']
+dec_k=kcat[1].data['DEJ2000']
+name_k=kcat[1].data['CXOXB']
+kcat.close()
+
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
+xb_count = cat[1].data['XB_ID']
+cat.close()
+
+xb_count0 = xb_count[xb_count != '0']
+print(len(xb_count0),'total XB counterparts')
+xb_unique = np.unique(xb_count0)
+print(len(xb_unique),'unique XB counterparts')
+
+w=open(wd+'xbootes_missing.dat','w')
+w.write('CXOXB \t RA \t DEC\n')
+for i in range(len(ra_k)):	
+	if len(xb_count[xb_count == name_k[i]]) == 0:
+		w.write(str(name_k[i])+' \t '+str(ra_k[i])+' \t '+str(dec_k[i])+'\n')
+w.close()
+sys.exit()
+'''
 
 #### Part 1: filter XBOOTES to create list of sources to be added to the catalog
 '''
-# This file contains the 452 XBOOTES sources missing from CDWFS
+# This file contains the N XBOOTES sources missing from CDWFS
 rak,deck=np.genfromtxt(wd+'xbootes_missing.dat',unpack=True, skip_header=1,usecols=[1,2])
 namek=np.genfromtxt(wd+'xbootes_missing.dat',unpack=True, skip_header=1,usecols=0, dtype='str')
 
 # Probability thresholds
-cutf, cuts, cuth = 10**(-4.6),10**(-4.4),10**(-4.2)
+cutf, cuts, cuth = 10**(-4.63),10**(-4.57),10**(-4.40)
 
 w=open(wd+'xbootes_tbadded.dat','w')
 w.write('CXOXB \t RA \t DEC \t PROB_F \t R90_F \t TOT_F \t BKG_F \t PROB_S \t R90_S \t TOT_S \t BKG_S \t PROB_H \t R90_H \t TOT_H \t BKG_H\n')
@@ -66,7 +91,6 @@ for i in range(len(rak)):
 w.close()
 print(keep,'XBOOTES sources which satisfy reliability cut.')
 print((time.time()-tin)/60.,'minutes for the match.')
-
 sys.exit()
 '''
 
@@ -77,15 +101,18 @@ namek,rak,deck,probf,r90f,totf,bkgf,probs,r90s,tots,bkgs,probh,r90h,toth,bkgh=np
 namek=np.genfromtxt(wd+'xbootes_tbadded.dat',unpack=True, skip_header=1,usecols=0, dtype='str')
 
 # Probability thresholds
-cutf, cuts, cuth = 10**(-4.6),10**(-4.4),10**(-4.2)
+cutf, cuts, cuth = 10**(-4.63),10**(-4.57),10**(-4.40)
 
-#id,ra_u,dec_u,poserr,probf,r90f,totf,bkgf,netf,e_netf_up,e_netf_lo,expf,crf,e_crf_up,e_crf_lo,fluxf,e_fluxf_up,e_fluxf_lo,probs,r90s,tots,bkgs,nets,e_nets_up,e_nets_lo,exps,crs,e_crs_up,e_crs_lo,fluxs,e_fluxs_up,e_fluxs_lo,probh,r90h,toth,bkgh,neth,e_neth_up,e_neth_lo,exph,crh,e_crh_up,e_crh_lo,fluxh,e_fluxh_up,e_fluxh_lo,hr,e_hr_up,e_hr_lo,out_name=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+cat0 = fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
+howmany = len(cat0[1].data['RA'])+1
+cat0.close()
+
 id,ra_u,dec_u,poserr,netf,e_netf_up,e_netf_lo,expf,crf,e_crf_up,e_crf_lo,fluxf,e_fluxf_up,e_fluxf_lo,nets,e_nets_up,e_nets_lo,exps,crs,e_crs_up,e_crs_lo,fluxs,e_fluxs_up,e_fluxs_lo,neth,e_neth_up,e_neth_lo,exph,crh,e_crh_up,e_crh_lo,fluxh,e_fluxh_up,e_fluxh_lo,hr,e_hr_up,e_hr_lo=[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
 used_r90=0
 for i in range(len(rak)):
 	print(i+1,len(rak))
 	
-	id.append(i+6844)
+	id.append(i+howmany)
 	ra_u.append(rak[i])
 	dec_u.append(deck[i])
 	
@@ -358,10 +385,10 @@ for i in range(len(rak)):
 	r90ratio=(r90h[i]/r90s[i])**2 # This takes into account that R90 is larger in hard band into the HR computation
 	# Compute HR with BEHR
 	os.chdir('/Users/alberto/BEHR/') 
-	behr='./BEHR softsrc='+str(int(tots[i]))+' hardsrc='+str(int(toth[i]))+' softbkg='+str(int(round(bkgs[i])))+' hardbkg='+str(int(round(bkgh[i])))+' softarea=1 hardarea='+str(r90ratio)+' output='+str(i+6844)+' outputHR=true'
+	behr='./BEHR softsrc='+str(int(tots[i]))+' hardsrc='+str(int(toth[i]))+' softbkg='+str(int(round(bkgs[i])))+' hardbkg='+str(int(round(bkgh[i])))+' softarea=1 hardarea='+str(r90ratio)+' output='+str(i+howmany)+' outputHR=true'
 	s.call(behr,shell=True)
 	
-	a,b,c=np.genfromtxt('/Users/alberto/BEHR/'+str(i+6844)+'_HR.txt',unpack=True,usecols=[2,3,4]) # Use median
+	a,b,c=np.genfromtxt('/Users/alberto/BEHR/'+str(i+howmany)+'_HR.txt',unpack=True,usecols=[2,3,4]) # Use median
 	hr.append(a)
 	e_hr_lo.append(a-b)
 	e_hr_up.append(c-a)

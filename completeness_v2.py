@@ -129,13 +129,13 @@ nboot = 10
 nsim = 10
 
 if band == 'broad':
-	logcut = -4.6
+	logcut = -4.63
 	inppars=[-1.34,-2.35,8.1e-15] # broad Lehmer's dN/dS params
 elif band == 'soft':
-	logcut = -4.4
+	logcut = -4.57
 	inppars=[-1.49,-2.48,6.0e-15] # soft
 else:
-	logcut = -4.2
+	logcut = -4.40
 	inppars=[-1.32,-2.55,6.4e-15] # hard
 cut = 10**logcut
 
@@ -182,16 +182,23 @@ for k in range(nsim):
 	
 	# Input sources depend on band and simfolder
 	#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])	
-	(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_'+simfolder[:-1]+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])	
-	input.append(flux_cdwfs)
+	#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'inp_list_sim/poiss_rand_'+band+'_'+simfolder[:-1]+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])
+	(flux_cdwfs,ra_cdwfs,dec_cdwfs,exp_cdwfs)=np.genfromtxt(wd+'inp_list_sim/poiss_rand_'+band+'_'+simfolder[:-1]+'_filtered_exp.dat',unpack=True,skip_header=1,usecols=[0,1,2,5])	
+	#print(len(flux_cdwfs))
+	ra_cdwfs = ra_cdwfs[exp_cdwfs >= 1800.]
+	dec_cdwfs = dec_cdwfs[exp_cdwfs >= 1800.]
+	flux_cdwfs2 = flux_cdwfs[exp_cdwfs >= 1800.]
+	#print(len(flux_cdwfs2))	
+	#sys.exit()
+	input.append(flux_cdwfs2)
 	
-	print(ra_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
-	print(dec_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
+	#print(ra_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
+	#print(dec_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
 	
 	# Sort them to start from the bright ones
 	ra_cdwfs=ra_cdwfs[::-1]
 	dec_cdwfs=dec_cdwfs[::-1]
-	flux_cdwfs=flux_cdwfs[::-1]
+	flux_cdwfs2=flux_cdwfs2[::-1]
 	
 	unmatched,blendings=0,0
 
@@ -231,8 +238,8 @@ for k in range(nsim):
 		if found == 1:
 			if len(counterparts) == 1:
 				
-				flux_inp.append(flux_cdwfs[i])
-				flux_inp2.append(flux_cdwfs[i])
+				flux_inp.append(flux_cdwfs2[i])
+				flux_inp2.append(flux_cdwfs2[i])
 				deff.append(distances[0])
 				
 				flux_out.append(counterparts[0][13])
@@ -246,8 +253,8 @@ for k in range(nsim):
 								
 			else:
 			
-				flux_inp.append(flux_cdwfs[i])
-				flux_inp2.append(flux_cdwfs[i])
+				flux_inp.append(flux_cdwfs2[i])
+				flux_inp2.append(flux_cdwfs2[i])
 				
 				counterparts=np.array(counterparts)
 				counterparts=choose_best(counterparts)
@@ -262,11 +269,11 @@ for k in range(nsim):
 				simdata=np.delete(simdata,np.where(simdata['RA']==counterparts[0]),0)
 				
 		else:
-			if flux_cdwfs[i] > 1e-13:
-				print(flux_cdwfs[i],ra_cdwfs[i],dec_cdwfs[i])
+			if flux_cdwfs2[i] > 1e-13:
+				print(flux_cdwfs2[i],ra_cdwfs[i],dec_cdwfs[i])
 			unmatched=unmatched+1
 	
-	quante,bincenters_s = np.histogram(flux_cdwfs, bins=bins00)
+	quante,bincenters_s = np.histogram(flux_cdwfs2, bins=bins00)
 	
 	quante_out,bincenters_s = np.histogram(flux_inp2, bins=bins00)
 	ratio = (quante_out/quante)*area

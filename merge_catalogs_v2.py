@@ -15,7 +15,7 @@ def distance(pointa, pointb):
 wd='/Users/alberto/Desktop/XBOOTES/'
 
 # Open full band catalog (no multiple, output from clean_multiple_sources.py)
-fcat=fits.open(wd+'new_mosaics_detection/cdwfs_broad_cat1_exp-psf.fits')
+fcat=fits.open(wd+'new_mosaics_detection/cdwfs_broad_cat1_200113.fits')
 raf=fcat[1].data['RA']
 decf=fcat[1].data['DEC']
 r90f=fcat[1].data['AV_R90']
@@ -24,13 +24,13 @@ filef=fcat[1].data
 
 fcat.close()
 
-w=open(wd+'new_mosaics_detection/cdwfs_broad_cat1_exp-psf.reg','w')
+w=open(wd+'new_mosaics_detection/cdwfs_broad_cat1_200113.reg','w')
 for i in range(len(raf)):
 	w.write('circle('+str(raf[i])+'d,'+str(decf[i])+'d,'+str(r90f[i])+'\")\n')
 w.close()
 
 # Open soft band catalog (no multiple)
-scat=fits.open(wd+'new_mosaics_detection/cdwfs_soft_cat1_exp-psf.fits')
+scat=fits.open(wd+'new_mosaics_detection/cdwfs_soft_cat1_200113.fits')
 ras=scat[1].data['RA']
 decs=scat[1].data['DEC']
 r90s=scat[1].data['AV_R90']
@@ -38,7 +38,7 @@ r90s=scat[1].data['AV_R90']
 files=scat[1].data
 scat.close()
 
-w=open(wd+'new_mosaics_detection/cdwfs_soft_cat1_exp-psf.reg','w')
+w=open(wd+'new_mosaics_detection/cdwfs_soft_cat1_200113.reg','w')
 for i in range(len(ras)):
 	w.write('circle('+str(ras[i])+'d,'+str(decs[i])+'d,'+str(r90s[i])+'\") #color=red \n')
 w.close()
@@ -72,7 +72,7 @@ for linef in range(len(filef)):
 			fints.append(counterparts[0])
 			files=np.delete(files,np.where(files['RA']==counterparts[0][1][0]),0)
 		else:
-			print('Here for source',raf[linef],decf[linef])
+			print('Here for source',raf[linef],decf[linef], 'First loop')
 			multi_counterpart += 1
 			'''
 			counterparts=np.array(counterparts)
@@ -85,10 +85,15 @@ for lines in range(len(files)):
 	fints.append([np.zeros(len(filef[0])),files[lines]])
 
 # Open hard band catalog (no multiple)
-hcat=fits.open(wd+'new_mosaics_detection/cdwfs_hard_cat1_exp-psf.fits')
+hcat=fits.open(wd+'new_mosaics_detection/cdwfs_hard_cat1_200113.fits')
 rah=hcat[1].data['RA']
 dech=hcat[1].data['DEC']
 r90h=hcat[1].data['AV_R90']
+
+w=open(wd+'new_mosaics_detection/cdwfs_hard_cat1_200113.reg','w')
+for i in range(len(rah)):
+	w.write('circle('+str(rah[i])+'d,'+str(dech[i])+'d,'+str(r90h[i])+'\") #color=yellow \n')
+w.close()
 
 fileh=hcat[1].data
 fileh=np.array(fileh)
@@ -108,7 +113,7 @@ for i in range(len(fints)):
 	for lineh in range(len(filt_fileh)):
 		sourceh=[filt_fileh['RA'][lineh],filt_fileh['DEC'][lineh]]
 		dist = distance(sourceh,source_fors)
-		if dist <= r90h[lineh]:
+		if dist <= filt_fileh['AV_R90'][lineh]:
 			counterparts.append([fints[i],filt_fileh[lineh]])
 			distances.append(dist)
 			found=1
@@ -121,7 +126,8 @@ for i in range(len(fints)):
 			fintsinth.append(counterparts[0])
 			fileh=np.delete(fileh,np.where(fileh['RA']==counterparts[0][1][0]),0)
 		else:
-			print('Here for source',raf[linef],decf[linef])
+			print(distances)
+			print('Here for source',fints[i][0][0],fints[i][0][1],'Second loop, counterparts',counterparts)
 			multi_counterpart += 1
 			'''
 			counterparts=np.array(counterparts)
@@ -196,4 +202,4 @@ for i in range(len(fintsinth)):
 
 #write catalog
 cat=Table([out_raf,out_decf,out_probf,out_r90f,out_totf,out_bkgf,out_netf,out_enetf_up,out_enetf_lo,out_expf,out_crf,out_ecrf_up,out_ecrf_lo,out_fluxf,out_efluxf_up,out_efluxf_lo,out_ras,out_decs,out_probs,out_r90s,out_tots,out_bkgs,out_nets,out_enets_up,out_enets_lo,out_exps,out_crs,out_ecrs_up,out_ecrs_lo,out_fluxs,out_efluxs_up,out_efluxs_lo,out_rah,out_dech,out_probh,out_r90h,out_toth,out_bkgh,out_neth,out_eneth_up,out_eneth_lo,out_exph,out_crh,out_ecrh_up,out_ecrh_lo,out_fluxh,out_efluxh_up,out_efluxh_lo],names=('RA_F','DEC_F','PROB_F','R90_F','TOT_F','BKG_F','NET_F','E_NET_F_+','E_NET_F_-','EXP_F','CR_F','E_CR_F_+','E_CR_F_-','FLUX_F','E_FLUX_F_+','E_FLUX_F_-', 'RA_S','DEC_S','PROB_S','R90_S','TOT_S','BKG_S','NET_S','E_NET_S_+','E_NET_S_-','EXP_S','CR_S','E_CR_S_+','E_CR_S_-','FLUX_S','E_FLUX_S_+','E_FLUX_S_-', 'RA_H','DEC_H','PROB_H','R90_H','TOT_H','BKG_H','NET_H','E_NET_H_+','E_NET_H_-','EXP_H','CR_H','E_CR_H_+','E_CR_H_-','FLUX_H','E_FLUX_H_+','E_FLUX_H_-'))
-cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat0_exp-psf.fits',format='fits',overwrite=True)
+cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat0_200113.fits',format='fits',overwrite=True)

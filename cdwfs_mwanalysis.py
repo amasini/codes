@@ -17,7 +17,7 @@ wd='/Users/alberto/Desktop/XBOOTES/'
 # Open the matched master catalog (-cp version contains only one CDWFS source per line) 
 # 7234 sources 
 #cat=fits.open('/Users/alberto/Downloads/nway-master/cdwfs_I-Ks-3.6-cp.fits')
-cat=fits.open(wd+'CDWFS_I-Ks-3.6_v120119.fits')
+cat=fits.open(wd+'CDWFS_I-Ks-3.6_v200109.fits')
 data=cat[1].data
 cols=cat[1].columns
 names=cols.names
@@ -78,7 +78,7 @@ plt.show()
 #plt.savefig('/Users/alberto/Desktop/cdwfs_flux.pdf',format='pdf')
 
 
-p_any_cut=0.13 # 0.54 (0.12 as of 04-Sep-19; 0.20 as of 15-Oct-19, 0.16 as of 30-Nov-19) needed to have <5% false associations
+p_any_cut=0.31 # 0.54 (0.12 as of 04-Sep-19; 0.20 as of 15-Oct-19, 0.16 as of 30-Nov-19) needed to have <5% false associations
 
 print('A total of',len(pany[pany>0]),' (p_any>0) opt-NIR associations found.')
 
@@ -463,8 +463,8 @@ dl=cosmo.luminosity_distance(zz)
 dl2=dl.value*3.086e24 # from Mpc to cm
 l=flimrestframe*4*3.141592*dl2**2
 
-(x,y)=np.genfromtxt('/Users/alberto/Desktop/aird_lstar_un.dat',unpack=True)
-(x2,y2)=np.genfromtxt('/Users/alberto/Desktop/aird_lstar_ob.dat',unpack=True)
+(x,y)=np.genfromtxt('/Users/alberto/Desktop/XBOOTES/aird_lstar_un.dat',unpack=True)
+(x2,y2)=np.genfromtxt('/Users/alberto/Desktop/XBOOTES/aird_lstar_ob.dat',unpack=True)
 
 lstar_un=10**(y)
 lstar_ob=10**(y2)

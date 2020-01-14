@@ -15,7 +15,7 @@ def distance(pointa, pointb):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat0_exp-psf.fits')
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat0_200113.fits')
 raf=cat[1].data['RA_F']
 decf=cat[1].data['DEC_F']
 probf=cat[1].data['PROB_F']
@@ -74,7 +74,8 @@ e_fluxh_lo=cat[1].data['E_FLUX_H_-']
 #cutf,cuts,cuth=7e-5,6e-4,4e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7338 srcs
 #cutf,cuts,cuth=1e-5,1e-5,1e-5 # These are the probability cuts in F,S,H bands at 99.5% rel -> 6295 srcs
 #cutf,cuts,cuth=1e-4,1e-4,1e-4 # These are the probability cuts in F,S,H bands at 99% rel -> 7385 srcs
-cutf,cuts,cuth=10**(-4.6),10**(-4.4),10**(-4.2) # These are the probability cuts in F,S,H bands at 99% rel -> 6883 srcs
+#cutf,cuts,cuth=10**(-4.6),10**(-4.4),10**(-4.2) # These are the probability cuts in F,S,H bands at 99% rel -> 6883 srcs
+cutf,cuts,cuth=10**(-4.63),10**(-4.57),10**(-4.40) # These are the probability cuts in F,S,H bands -> 6732 srcs
 
 #cutf,cuts,cuth=5e-5,5e-5,5e-5 # These are the probability cuts in F,S,H bands at 99% rel -> 7242 srcs
 
@@ -87,14 +88,14 @@ print(len(ras[probs<=cuts]))
 print(len(rah[probh<=cuth]))
 print('we should have a total of',len(raf[(probf<=cutf) | (probs<=cuts) | (probh<=cuth)]),'sources.')
 
-#sys.exit()
+sys.exit()
 
 count=0
 ra_u,dec_u,r90_u=[],[],[]
 hr,e_hr_up,e_hr_lo=[],[],[]
 out_name,unique,id,poserr=[],[],[],[]
 os.chdir('/Users/alberto/BEHR/') 
-s.call('rm -f /Users/alberto/BEHR/*_HR.txt',shell=True)
+#s.call('rm -f /Users/alberto/BEHR/*_HR.txt',shell=True)
 kenter_match=0
 kcat=fits.open(wd+'xbootes_kenter+05.fits')
 ra_k=kcat[1].data['RAJ2000']
@@ -502,7 +503,7 @@ e_fluxh_lo=e_fluxh_lo[unique==True]
 
 #write catalog
 cat=Table([id,ra_u,dec_u,poserr,probf,r90f,totf,bkgf,netf,e_netf_up,e_netf_lo,expf,crf,e_crf_up,e_crf_lo,fluxf,e_fluxf_up,e_fluxf_lo,probs,r90s,tots,bkgs,nets,e_nets_up,e_nets_lo,exps,crs,e_crs_up,e_crs_lo,fluxs,e_fluxs_up,e_fluxs_lo,probh,r90h,toth,bkgh,neth,e_neth_up,e_neth_lo,exph,crh,e_crh_up,e_crh_lo,fluxh,e_fluxh_up,e_fluxh_lo,hr,e_hr_up,e_hr_lo,out_name],names=('ID','RA','DEC','POS_ERR','PROB_F','R90_F','TOT_F','BKG_F','NET_F','E_NET_F_+','E_NET_F_-','EXP_F','CR_F','E_CR_F_+','E_CR_F_-','FLUX_F','E_FLUX_F_+','E_FLUX_F_-','PROB_S','R90_S','TOT_S','BKG_S','NET_S','E_NET_S_+','E_NET_S_-','EXP_S','CR_S','E_CR_S_+','E_CR_S_-','FLUX_S','E_FLUX_S_+','E_FLUX_S_-','PROB_H','R90_H','TOT_H','BKG_H','NET_H','E_NET_H_+','E_NET_H_-','EXP_H','CR_H','E_CR_H_+','E_CR_H_-','FLUX_H','E_FLUX_H_+','E_FLUX_H_-','HR','E_HR_+','E_HR_-','XB_ID'))
-cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits',format='fits',overwrite=True)
+cat.write(wd+'new_mosaics_detection/cdwfs_merged_cat1_200113.fits',format='fits',overwrite=True)
 
 #os.chdir(wd)
 #w=open(wd+'cdwfs_merged_cat1.reg','w')

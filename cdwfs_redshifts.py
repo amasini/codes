@@ -42,9 +42,11 @@ for i in range(32,36):
 		imag.append(imag1[k])
 '''
 
-# Open the matched master catalog (-cp version contains only one CDWFS source per line) 
-# 7338 sources 
-cat=fits.open('/Users/alberto/Downloads/nway-master/120119_trial-cp.fits')
+# Open the matched master catalog (should contain only one CDWFS source per line)  
+cat=fits.open(wd+'/nway-master/200109_trial.fits')
+
+p_any_cut=0.31 # 0.54 (0.12 as of 4-Sep-19, 0.20 as of 15-Oct-19, 0.16 as of 30-Nov-19, 0.13 as of 01-Dec-19, 0.31 as of 09-Jan-20) needed to have <5% false associations
+
 #cat=fits.open(wd+'CDWFS_I-Ks-3.6_v2.fits')
 data=cat[1].data
 cols=cat[1].columns
@@ -71,8 +73,6 @@ print('The full CDWFS catalog has',len(data),'sources.')
 #for i in range(len(data)):
 #	outcat.append(data[i])
 #outcat=np.array(outcat)
-
-p_any_cut=0.13 # 0.54 (0.12 as of 4-Sep-19, 0.20 as of 15-Oct-19, 0.16 as of 30-Nov-19, 0.13 as of 01-Dec-19) needed to have <5% false associations
 
 imag=imag0[pany>p_any_cut]
 kmag=kmag0[pany>p_any_cut]
@@ -261,9 +261,8 @@ for i in range(len(ra)):
 		chi_s.append(-99.0)
 print(mat,'matched with Chung in',(time.time()-tin)/60.,'minutes.')
 
-
 # Write out catalog
-table = Table.read('/Users/alberto/Downloads/nway-master/120119_trial-cp.fits', format='fits')
+table = Table.read(wd+'nway-master/200109_trial.fits', format='fits')
 
 t1 = Column(name='zsp', data=z_out_sp)
 t2 = Column(name='zph_G+A', data=z_out_ga)
@@ -279,7 +278,7 @@ table.add_column(t4)
 table.add_column(t5)
 table.add_column(t6)
 table.add_column(t7)
-table.write(wd+'CDWFS_I-Ks-3.6_v120119.fits', format='fits', overwrite='True')
+table.write(wd+'CDWFS_I-Ks-3.6_v200109.fits', format='fits', overwrite='True')
 sys.exit()
 '''
 vet_col=[]

@@ -9,6 +9,8 @@ import time
 #from ciao_contrib.region.check_fov import FOVFiles
 from scipy.stats import gaussian_kde
 import scipy.stats.distributions
+from scipy.interpolate import interp1d
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180*3.141592)
@@ -175,14 +177,15 @@ band = ['broad','soft','hard']
 xsize = 6
 f,ax=plt.subplots(len(band), 1, figsize=[xsize,xsize*len(band)], sharex=True, sharey=True)
 for i in range(len(band)):
-
-	bins,spurious,e_spurious,real,e_real=np.genfromtxt(wd+'spurious_sources_'+band[i]+'_sim_indep_22-Nov-19_finer.dat', unpack=True)
 	
+	# Consider the three sets of simulations (22 Nov, 06 Dec, 12 Dec)
+	bins,spurious,e_spurious,real,e_real=np.genfromtxt(wd+'spurious_sources_'+band[i]+'_sim_indep_22-Nov-19_finer.dat', unpack=True)
+	print(np.max(spurious))
 	bins2,spurious2,e_spurious2,real2,e_real2=np.genfromtxt(wd+'spurious_sources_'+band[i]+'_sim_indep_06-Dec-19_finer.dat', unpack=True)
 	
 	bins3,spurious3,e_spurious3,real3,e_real3=np.genfromtxt(wd+'spurious_sources_'+band[i]+'_sim_indep_12-Dec-19_finer.dat', unpack=True)
 	
-	print(np.max(spurious))
+	# Renormalize the quantities and define difference curve
 	norm_sp = spurious/np.max(spurious)
 	e_norm_sp = e_spurious/np.max(spurious)
 	norm_re = real/np.max(real)
@@ -207,12 +210,35 @@ for i in range(len(band)):
 	diff3 = norm_re3-norm_sp3
 	e_diff3 = np.sqrt(e_norm_re3**2+e_norm_sp3**2)
 	
+	# Compute median of difference and spurious
+	med_diff, med_err, med_spurious, med_sp_err, med_abs_sp = [],[],[],[],[]
+	for k in range(len(diff)):
+		med_diff.append(np.median([diff[k],diff2[k],diff3[k]]))
+		med_err.append(np.median([e_diff[k], e_diff2[k], e_diff3[k]]))
+		#w = [1./(e_diff[k]**2), 1./(e_diff2[k])**2, 1./(e_diff3[k])**2]
+		#med_diff.append(np.average([diff[k],diff2[k],diff3[k]], weights = w))
+		#med_err.append(np.sqrt(1./np.sum(w)))	
+		
+		med_spurious.append(np.median([norm_sp[k],norm_sp2[k],norm_sp3[k]]))
+		med_sp_err.append(np.median([e_norm_sp[k], e_norm_sp2[k], e_norm_sp3[k]]))
+		med_abs_sp.append(np.median([spurious[k],spurious2[k],spurious3[k]]))
+
+	med_diff=np.array(med_diff)
+	med_err = np.array(med_err)
+	med_spurious = np.array(med_spurious)
+	med_sp_err = np.array(med_sp_err)
+	med_abs_sp = np.array(med_abs_sp)
+
+	# Perform polynomial fitting between -6 < LogP < -3
+	z=np.polyfit(bins[bins<=-3],med_diff[bins<=-3],deg=3, w = 1/med_err[bins<=-3])
+	f2 = np.poly1d(z)
+	xf2 = np.linspace(-6,-3,200)
+
 	peak_prob = bins[diff==np.max(diff)]
-	
 	peak_prob2 = bins2[diff2==np.max(diff2)]
-	
 	peak_prob3 = bins3[diff3==np.max(diff3)]
-	
+
+	'''
 	print(peak_prob)
 	print(spurious[bins==peak_prob])
 	
@@ -221,35 +247,70 @@ for i in range(len(band)):
 	
 	print(peak_prob3)
 	print(spurious3[bins3==peak_prob3])
+	'''
 	
-	xmin = (peak_prob+8.)/8.
 	if len(band) > 1:
-	
+		
 		ax[i].errorbar(bins,norm_sp,yerr=e_norm_sp,color='k')
 		ax[i].errorbar(bins,norm_re,yerr=e_norm_re,color='k')
-		ax[i].errorbar(bins,diff,yerr=e_diff,color='b')
+		ax[i].errorbar(bins,diff,yerr=e_diff,color='gray')
 		
 		ax[i].errorbar(bins2,norm_sp2,yerr=e_norm_sp2,color='k',linestyle='dashed')
 		ax[i].errorbar(bins2,norm_re2,yerr=e_norm_re2,color='k',linestyle='dashed')
-		ax[i].errorbar(bins2,diff2,yerr=e_diff2,color='b',linestyle='dashed')
+		ax[i].errorbar(bins2,diff2,yerr=e_diff2,color='gray',linestyle='dashed')
 		
 		ax[i].errorbar(bins3,norm_sp3,yerr=e_norm_sp3,color='k',linestyle='dotted')
 		ax[i].errorbar(bins3,norm_re3,yerr=e_norm_re3,color='k',linestyle='dotted')
-		ax[i].errorbar(bins3,diff3,yerr=e_diff3,color='b',linestyle='dotted')
+		ax[i].errorbar(bins3,diff3,yerr=e_diff3,color='gray',linestyle='dotted')
 		
-		ax[i].axvline(x=peak_prob,color='red',linestyle='-')
-		ax[i].axvline(x=peak_prob2,color='red',linestyle='--')
-		ax[i].axvline(x=peak_prob3,color='red',linestyle='dotted')
-		ax[i].axhline(y=norm_sp[bins==peak_prob],xmin=xmin, color='red',linestyle='--')
+		# Add inset
+		axins = inset_axes(ax[i], width=1.5, height=1.2, loc = 3)
+		
+		axins.errorbar(bins[bins<=-3],med_diff[bins<=-3],yerr=med_err[bins<=-3], color='gray', linestyle=None)
+		axins.plot(bins[bins<=-3],med_diff[bins<=-3],color='gray', marker='.')
+		axins.plot(xf2,f2(xf2),'r-', linewidth=3)
+		axins.set_yticklabels([])
+		axins.set_yticks([])	
+		axins.xaxis.tick_top()
+		axins.xaxis.set_label_position('top')
+		axins.tick_params(which='major',axis='x',direction='in')
+		if i == 0:	
+			axins.axis([-5.5,-3.5,0.65,0.78])	
+		elif i == 1:
+			axins.axis([-5.5,-3.5,0.65,0.78])
+		else:
+			axins.axis([-5.5,-3.5,0.55,0.75])
+		#ax[i].errorbar(bins,med_spurious,yerr=med_sp_err, color='gray', linestyle=None)		
+		
+		#ax[i].errorbar(bins,med_diff,yerr=med_err, color='gray', linestyle=None)
+		#ax[i].plot(bins,med_diff,color='gray', marker='.')		
+
+		#ax[i].plot(xf2,f2(xf2),'r-', linewidth=3)
+		peak_prob_new = xf2[f2(xf2)==np.max(f2(xf2))]
+		xmin = (peak_prob_new+8.)/8.
+		axins.axvline(x=peak_prob_new,color='green',linestyle='-', label='Mathematical peak')
+		ax[i].axvline(x=peak_prob_new,color='green',linestyle='-', label='Mathematical peak')
+		dist = abs(bins-peak_prob_new)		
+		closest_bin = bins[dist==np.min(dist)]
+		print('Mathematical peak:',peak_prob_new, ', Using bin '+str(closest_bin)+' for the number of spurious, which is', med_abs_sp[bins==closest_bin])
+		
+		#ax[i].axvline(x=peak_prob,color='red',linestyle='-')
+		#ax[i].axvline(x=peak_prob2,color='red',linestyle='--')
+		#ax[i].axvline(x=peak_prob3,color='red',linestyle='dotted')
+		#print(peak_prob,peak_prob2,peak_prob3)
+		#print(np.min([peak_prob,peak_prob2,peak_prob3]))
+		#sys.exit()
+		axins.axvspan(np.min([peak_prob,peak_prob2,peak_prob3]),np.max([peak_prob,peak_prob2,peak_prob3]), color='gold', alpha=0.2, label='Range of sims')		
+		#ax[i].axhline(y=med_spurious[bins==closest_bin],xmin=xmin, color='red',linestyle='--')
 		ax[i].tick_params(top=True, direction='in')
 		ax[i].set_ylabel('Fraction')
 		ax[i].annotate(band[i].capitalize(), xy=(-7.5,0.9))
 		ax[i].annotate('"Real"', xy=(-3.7,0.8))
 		ax[i].annotate('Spurious', xy=(-2.2,0.6))
-		ax[i].annotate('Difference', xy=(-2.0,0.25), color='blue')
+		ax[i].annotate('Difference', xy=(-2.0,0.25), color='gray')
 		ax[i].set_xlim([-8,0])
-	
-	
+		
+		'''
 		locs, labels = plt.yticks() 
 	
 		labels = (locs*np.max(spurious)).astype(int)
@@ -259,6 +320,7 @@ for i in range(len(band)):
 		ax2.set_ylabel('Number of spurious')
 		ax2.set_yticklabels(labels)
 		ax2.tick_params(direction='in')
+		'''
 	else:
 		
 		ax.errorbar(bins,norm_sp,yerr=e_norm_sp,color='k')
@@ -297,6 +359,7 @@ for i in range(len(band)):
 		'''
 if len(band) > 1:
 	ax[i].set_xlabel(r'$\log{P}$')
+	#ax[i].legend()
 	plt.subplots_adjust(hspace=0)
 else:
 	ax.set_xlabel(r'$\log{P}$')
