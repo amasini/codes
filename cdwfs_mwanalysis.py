@@ -13,11 +13,13 @@ import seaborn as sns
 cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Om0=0.3)
 
 wd='/Users/alberto/Desktop/XBOOTES/'
+date = '200113'
+p_any_cut=0.35 
 
 # Open the matched master catalog (-cp version contains only one CDWFS source per line) 
-# 7234 sources 
+# 6800 sources 
 #cat=fits.open('/Users/alberto/Downloads/nway-master/cdwfs_I-Ks-3.6-cp.fits')
-cat=fits.open(wd+'CDWFS_I-Ks-3.6_v200109.fits')
+cat=fits.open(wd+'CDWFS_I-Ks-3.6_v'+date+'.fits')
 data=cat[1].data
 cols=cat[1].columns
 names=cols.names
@@ -50,35 +52,43 @@ ncat = data['ncat']
 cat.close()
 print('='*30)
 print('The full CDWFS catalog has',len(data),'sources.')
+print('Minimum fluxes are',np.min(fluxf0),np.min(fluxs0),np.min(fluxh0))
+
+# Take the analytical sensitivity to get the fluxes at 50%, 20% and 10% of completeness
+fl_geo,ar_geo=np.genfromtxt(wd+'cdwfs_soft_sens_-4.6_geo.dat',unpack=True)
+ar_geo = ar_geo/np.max(ar_geo)
+compl50 = 0.5
+compl20 = 0.2
+compl10 = 0.1
+fl50 = fl_geo[abs(ar_geo-compl50)==np.min(abs(ar_geo-compl50))]
+fl20 = fl_geo[abs(ar_geo-compl20)==np.min(abs(ar_geo-compl20))]
+fl10 = fl_geo[abs(ar_geo-compl10)==np.min(abs(ar_geo-compl10))]
 
 # X-ray Flux distributions
-fluxf=fluxf0[efluxfp0!=0]
-fluxs=fluxs0[efluxsp0!=0]
-fluxh=fluxh0[efluxhp0!=0]
+fluxf=fluxf0[efluxfp0!=-99]
+fluxs=fluxs0[efluxsp0!=-99]
+fluxh=fluxh0[efluxhp0!=-99]
 bins=np.logspace(np.log10(5e-16),np.log10(2e-13),30)
 f,ax=plt.subplots(3,sharex=True)
 ax[0].hist(fluxf,bins=bins,histtype='step',linewidth=3,color='k')
-ax[0].tick_params(which='major',direction='inout',length=7,labelsize=13)
-ax[0].tick_params(which='minor',direction='inout',length=4,labelsize=13)
+ax[0].tick_params(which='major',direction='inout',top=True,right=True,length=7,labelsize=13)
+ax[0].tick_params(which='minor',direction='inout',top=True,right=True,length=4,labelsize=13)
 ax[0].annotate('0.5-7 keV',xy=(7e-14,500),fontsize=13)
 
 ax[1].hist(fluxs,bins=bins,histtype='step',linewidth=3,color='r')
-ax[1].tick_params(which='major',direction='inout',top=True,length=7,labelsize=13)
-ax[1].tick_params(which='minor',direction='inout',top=True,length=4,labelsize=13)
+ax[1].tick_params(which='major',direction='inout',top=True,right=True,length=7,labelsize=13)
+ax[1].tick_params(which='minor',direction='inout',top=True,right=True,length=4,labelsize=13)
 ax[1].annotate('0.5-2 keV',xy=(7e-14,400),fontsize=13)
 
 ax[2].hist(fluxh,bins=bins,histtype='step',linewidth=3,color='b')
 ax[2].set_xlabel(r'Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=12)
 ax[2].set_xscale('log')
-ax[2].tick_params(which='major',direction='inout',top=True,length=8,labelsize=13)
-ax[2].tick_params(which='minor',direction='inout',top=True,length=4,labelsize=13)
+ax[2].tick_params(which='major',direction='inout',top=True,right=True,length=8,labelsize=13)
+ax[2].tick_params(which='minor',direction='inout',top=True,right=True,length=4,labelsize=13)
 ax[2].annotate('2-7 keV',xy=(7e-14,400),fontsize=13)
 plt.subplots_adjust(hspace=0)
 plt.show()
 #plt.savefig('/Users/alberto/Desktop/cdwfs_flux.pdf',format='pdf')
-
-
-p_any_cut=0.31 # 0.54 (0.12 as of 04-Sep-19; 0.20 as of 15-Oct-19, 0.16 as of 30-Nov-19) needed to have <5% false associations
 
 print('A total of',len(pany[pany>0]),' (p_any>0) opt-NIR associations found.')
 
@@ -430,22 +440,26 @@ plt.show()
 #plt.savefig('/Users/alberto/Desktop/cdwfs_hrz_6.pdf',format='pdf')
 
 
-
 #--------------------------- LX - REDSHIFT PLANE ---------------------------#
+GAMMA = 1.4
+which_band=fluxs
 
 efluxfp0=efluxfp[zflag==1]
 efluxfp0B=efluxfp0[pany_z>p_any_cut]
-goodflux0=fluxf[zflag==1]
+goodflux0=which_band[zflag==1]
 goodflux0B=goodflux0[pany_z>p_any_cut]
 xb_id1=xb_id[zflag==1]
 xb_id1B=xb_id1[pany_z>p_any_cut]
 uplim=np.zeros_like(goodflux0)
 uplimB=np.zeros_like(goodflux0B)
-uplim[efluxfp0==0]=1
-uplimB[efluxfp0B==0]=1
+uplim[efluxfp0==-99]=1
+uplimB[efluxfp0B==-99]=1
 
-fluxrestframe=goodflux0*(1+ztot)**(-0.2)
-fluxrestframeB=goodflux0B*(1+ztot[pany_z>p_any_cut])**(-0.2)
+new = np.zeros_like(goodflux0)
+new[xb_id1=='-99']=1
+
+fluxrestframe=goodflux0*(1+ztot)**(GAMMA-2)
+fluxrestframeB=goodflux0B*(1+ztot[pany_z>p_any_cut])**(GAMMA-2)
 dl=cosmo.luminosity_distance(ztot)
 dlB=cosmo.luminosity_distance(ztot[pany_z>p_any_cut])
 dl2=dl.value*3.086e24
@@ -456,9 +470,9 @@ print(len(lfull[lfull<1e42]),'objects have L<10^42 erg/s, ',len(lfull[lfull>=1e4
 print(len(lfullB[lfullB<1e42]),' ROBUST objects have L<10^42 erg/s, ',len(lfullB[lfullB>=1e42]),'otherwise.')
 
 zz=np.logspace(np.log10(1e-4),np.log10(5),100)
-flim=1e-15
-gamma=1.8
-flimrestframe=flim*((1+zz)**(gamma-2))
+
+flim=np.array([fl10,fl20])
+flimrestframe=flim*((1+zz)**(GAMMA-2))
 dl=cosmo.luminosity_distance(zz)
 dl2=dl.value*3.086e24 # from Mpc to cm
 l=flimrestframe*4*3.141592*dl2**2
@@ -471,17 +485,35 @@ lstar_ob=10**(y2)
 z1=10**(x)-1
 z2=10**(x2)-1
 
+plt.figure()
+plt.hist(lfull,bins=np.logspace(40,47,41))
+plt.xscale('log')
+plt.show()
+
+#binss = np.logspace(-1,np.log10(5),11)
+binss = np.linspace(0.1,5,11)
+quanti_vecchi,be = np.histogram(ztot[new==0],bins=binss)
+quanti_nuovi,be = np.histogram(ztot[new==1],bins=binss)
+bc = list((be[i+1]+be[i])/2. for i in range(len(be)-1))
+plt.figure()
+plt.step(bc,quanti_nuovi/(quanti_nuovi+quanti_vecchi),'bo',where='mid')
+plt.axhline(y=0.5,color='r',linestyle='--')
+plt.xlabel('Redshift')
+plt.ylabel('Fractional New')
+plt.show()
+
+
 plt.figure(figsize=[7,7])
-#plt.plot(ztot[xb_id1!='0'],lfull[xb_id1!='0'],'.',color='tomato',label='XBootes')
-#plt.plot(ztot[xb_id1=='0'],lfull[xb_id1=='0'],'.',color='dodgerblue',label='CDWFS',zorder=-1)
-plt.plot(ztot[uplim==0],lfull[uplim==0],'.',color='dodgerblue',zorder=-1,alpha=0.2)
-plt.plot(ztot[(uplim==0) & (pany_z>p_any_cut)],lfullB[uplimB==0],'.',color='dodgerblue')
-plt.errorbar(ztot[uplim==1],lfull[uplim==1],marker='*',yerr=0.3*lfull[uplim==1],uplims=np.ones_like(ztot[uplim==1]),linestyle='none',color='tomato',zorder=-1,alpha=0.2)
-plt.errorbar(ztot[(uplim==1) & (pany_z>p_any_cut)],lfullB[uplimB==1],marker='*',yerr=0.3*lfullB[uplimB==1],uplims=np.ones_like(ztot[(uplim==1) & (pany_z>p_any_cut)]),linestyle='none',color='tomato')
-plt.plot(zz,l,'k--')
+
+plt.plot(ztot[new==0],lfull[new==0],'.',color='tomato',zorder=-1,alpha=0.5)
+plt.plot(ztot[new==1],lfull[new==1],'.',color='dodgerblue',alpha=0.5)
+
+plt.plot(zz,l[0],'k--')
+plt.plot(zz,l[1],'k-.')
+
 plt.plot(z1,lstar_un,color='lime',linestyle='dashed',linewidth=3,label='A15 Unobscured')
 plt.plot(z2,lstar_ob,color='yellow',linestyle='dashed',linewidth=3,label='A15 Obscured')
-plt.xscale('log')
+#plt.xscale('log')
 plt.yscale('log')
 plt.xlabel('Redshift',fontsize=20)
 plt.ylabel(r'$L_{0.5-7}$ (erg/s)',fontsize=20)
@@ -546,26 +578,26 @@ ydo = 2.5*(-1-(np.log10(x) + c))
 
 # Transform to logarithms the fluxes, and filter out the X-ray uplims and bad photometry
 # for all the classes defined above
-x0 = np.log10(fluxh[(efluxhp!=0) & (imag_yz != 99) & (imag_yz != -99)])
-y0 = imag_yz[(efluxhp!=0) & (imag_yz != 99) & (imag_yz != -99)]
+x0 = np.log10(fluxh[(efluxhp!=-99) & (imag_yz != 99) & (imag_yz != -99)])
+y0 = imag_yz[(efluxhp!=-99) & (imag_yz != 99) & (imag_yz != -99)]
 
-x_g = np.log10(fluxh_g[(efluxhp_g!=0) & (imag_g != 99) & (imag_g != -99)])
-y_g = imag_g[(efluxhp_g!=0) & (imag_g != 99) & (imag_g != -99)]
+x_g = np.log10(fluxh_g[(efluxhp_g!=-99) & (imag_g != 99) & (imag_g != -99)])
+y_g = imag_g[(efluxhp_g!=-99) & (imag_g != 99) & (imag_g != -99)]
 
-x_gLL = np.log10(fluxh_gLL[(efluxhp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)])
-y_gLL = imag_gLL[(efluxhp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)]
+x_gLL = np.log10(fluxh_gLL[(efluxhp_gLL!=-99) & (imag_gLL != 99) & (imag_gLL != -99)])
+y_gLL = imag_gLL[(efluxhp_gLL!=-99) & (imag_gLL != 99) & (imag_gLL != -99)]
 
-x_a = np.log10(fluxh_a[(efluxhp_a!=0) & (imag_a != 99) & (imag_a != -99)])
-y_a = imag_a[(efluxhp_a!=0) & (imag_a != 99) & (imag_a != -99)]
+x_a = np.log10(fluxh_a[(efluxhp_a!=-99) & (imag_a != 99) & (imag_a != -99)])
+y_a = imag_a[(efluxhp_a!=-99) & (imag_a != 99) & (imag_a != -99)]
 
-x_s = np.log10(fluxh_s[(efluxhp_s!=0) & (imag_s != 99) & (imag_s != -99)])
-y_s = imag_s[(efluxhp_s!=0) & (imag_s != 99) & (imag_s != -99)]
+x_s = np.log10(fluxh_s[(efluxhp_s!=-99) & (imag_s != 99) & (imag_s != -99)])
+y_s = imag_s[(efluxhp_s!=-99) & (imag_s != 99) & (imag_s != -99)]
 
-x_snoz = np.log10(fluxh_snoz[(efluxhp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)])
-y_snoz = imag_snoz[(efluxhp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)]
+x_snoz = np.log10(fluxh_snoz[(efluxhp_snoz!=-99) & (imag_snoz != 99) & (imag_snoz != -99)])
+y_snoz = imag_snoz[(efluxhp_snoz!=-99) & (imag_snoz != 99) & (imag_snoz != -99)]
 
-x_u = np.log10(fluxh_u[(efluxhp_u!=0) & (imag_u != 99) & (imag_u != -99)])
-y_u = imag_u[(efluxhp_u!=0) & (imag_u != 99) & (imag_u != -99)]
+x_u = np.log10(fluxh_u[(efluxhp_u!=-99) & (imag_u != 99) & (imag_u != -99)])
+y_u = imag_u[(efluxhp_u!=-99) & (imag_u != 99) & (imag_u != -99)]
 
 # Define the X/0 for the AGNs
 xovero_a = x_a + c + y_a/2.5
@@ -579,11 +611,11 @@ dl2=dl.value*3.086e24
 lhard=4*3.141592*fluxrestframe*dl2**2
 
 lhard_a = lhard[what=='A']
-lhard_a_filt = lhard_a[(efluxhp_a!=0) & (imag_a != 99) & (imag_a != -99)]
+lhard_a_filt = lhard_a[(efluxhp_a!=-99) & (imag_a != 99) & (imag_a != -99)]
 logL_a = np.log10(lhard_a_filt)
 
 lhard_g = lhard[what=='G']
-lhard_g_filt = lhard_g[(efluxhp_g!=0) & (imag_g != 99) & (imag_g != -99)]
+lhard_g_filt = lhard_g[(efluxhp_g!=-99) & (imag_g != 99) & (imag_g != -99)]
 logL_g = np.log10(lhard_g_filt)
 
 model_xovero = logL_a-43.7
@@ -691,26 +723,26 @@ ydo = 2.5*(-1-(np.log10(x) + c))
 
 # Transform to logarithms the fluxes, and filter out the X-ray uplims and bad photometry
 # for all the classes defined above
-x0 = np.log10(fluxs[(efluxsp!=0) & (imag != 99) & (imag != -99)])
-y0 = imag[(efluxsp!=0) & (imag != 99) & (imag != -99)]
+x0 = np.log10(fluxs[(efluxsp!=-99) & (imag != 99) & (imag != -99)])
+y0 = imag[(efluxsp!=-99) & (imag != 99) & (imag != -99)]
 
-x_g = np.log10(fluxs_g[(efluxsp_g!=0) & (imag_g != 99) & (imag_g != -99)])
-y_g = imag_g[(efluxsp_g!=0) & (imag_g != 99) & (imag_g != -99)]
+x_g = np.log10(fluxs_g[(efluxsp_g!=-99) & (imag_g != 99) & (imag_g != -99)])
+y_g = imag_g[(efluxsp_g!=-99) & (imag_g != 99) & (imag_g != -99)]
 
-x_gLL = np.log10(fluxs_gLL[(efluxsp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)])
-y_gLL = imag_gLL[(efluxsp_gLL!=0) & (imag_gLL != 99) & (imag_gLL != -99)]
+x_gLL = np.log10(fluxs_gLL[(efluxsp_gLL!=-99) & (imag_gLL != 99) & (imag_gLL != -99)])
+y_gLL = imag_gLL[(efluxsp_gLL!=-99) & (imag_gLL != 99) & (imag_gLL != -99)]
 
-x_a = np.log10(fluxs_a[(efluxsp_a!=0) & (imag_a != 99) & (imag_a != -99)])
-y_a = imag_a[(efluxsp_a!=0) & (imag_a != 99) & (imag_a != -99)]
+x_a = np.log10(fluxs_a[(efluxsp_a!=-99) & (imag_a != 99) & (imag_a != -99)])
+y_a = imag_a[(efluxsp_a!=-99) & (imag_a != 99) & (imag_a != -99)]
 
-x_s = np.log10(fluxs_s[(efluxsp_s!=0) & (imag_s != 99) & (imag_s != -99)])
-y_s = imag_s[(efluxsp_s!=0) & (imag_s != 99) & (imag_s != -99)]
+x_s = np.log10(fluxs_s[(efluxsp_s!=-99) & (imag_s != 99) & (imag_s != -99)])
+y_s = imag_s[(efluxsp_s!=-99) & (imag_s != 99) & (imag_s != -99)]
 
-x_snoz = np.log10(fluxs_snoz[(efluxsp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)])
-y_snoz = imag_snoz[(efluxsp_snoz!=0) & (imag_snoz != 99) & (imag_snoz != -99)]
+x_snoz = np.log10(fluxs_snoz[(efluxsp_snoz!=-99) & (imag_snoz != 99) & (imag_snoz != -99)])
+y_snoz = imag_snoz[(efluxsp_snoz!=-99) & (imag_snoz != 99) & (imag_snoz != -99)]
 
-x_u = np.log10(fluxs_u[(efluxsp_u!=0) & (imag_u != 99) & (imag_u != -99)])
-y_u = imag_u[(efluxsp_u!=0) & (imag_u != 99) & (imag_u != -99)]
+x_u = np.log10(fluxs_u[(efluxsp_u!=-99) & (imag_u != 99) & (imag_u != -99)])
+y_u = imag_u[(efluxsp_u!=-99) & (imag_u != 99) & (imag_u != -99)]
 
 # Gaussian smoothing to create nice contours for the three main groups
 nbins=40
@@ -743,6 +775,7 @@ plt.contour(xi_a, yi_a, zi_a.reshape(xi_a.shape), cmap='Reds', linewidths = 4)
 plt.plot(np.log10(x),y,'k',linestyle='dotted')
 plt.plot(np.log10(x),yup,'k--')
 plt.plot(np.log10(x),ydo,'k--')
+#plt.fill_between(np.log10(x), 0, -2.5*(np.log10(x)+6.91), facecolor='gray')
 
 plt.xlabel(r'Log($F_{0.5-2}$/erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
 plt.ylabel('i band magnitude' , fontsize=12)

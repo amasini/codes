@@ -32,6 +32,7 @@ from astropy.convolution import Gaussian2DKernel
 from scipy.signal import convolve as scipy_convolve
 from astropy.convolution import convolve
 from astropy.wcs import WCS
+import matplotlib.collections as collections
 
 cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Om0=0.3)
 
@@ -66,106 +67,84 @@ def func(x,x0,p):
 def sigmoid(x,m,b):
 	return 2/(1+exp(-b*(x-m))) - 1
 
+# Function to compute dN/dS given parameters
+def dnds(fx,params):
+	
+	b1,b2,fb = params[0],params[1],params[2]
+	fref = 1e-14
+	if band == 'broad':
+		k = 5.622e16
+	elif band == 'soft':
+		k = 1.6956e16
+	else:
+		k = 5.7313e16
+	k1 = k*(fb/fref)**(b1-b2)
+	
+	if type(fx) == float:
+		if fx <= fb:
+			return k*(fx/fref)**b1
+		else:
+			return k1*(fx/fref)**b2
+	elif (type(fx) == list)	or (type(fx) == np.ndarray):
+		if type(fx) == list:
+			fx = np.array(fx)
+		aux = k*(fx/fref)**b1
+		aux[fx > fb] = k1*(fx[fx > fb]/fref)**b2
+		return aux
+
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-#### CORRECT THE BUG OF THE UPPERLIMITS - IF SOURCE HAS PROB < THRESHOLD, COMPUTE NORMAL CR AND FLUX
 
-cutf,cuts,cuth=10**(-4.63),10**(-4.57),10**(-4.40)
-
-cat = fits.open(wd+'CDWFS_I-Ks-3.6_v200109-cp.fits')
-dat=cat[1].data
-
-ra=dat['CDWFS_RA']
-probf=dat['CDWFS_PROB_F']
-efluxfp=dat['CDWFS_E_FLUX_F_+']
-totf = dat['CDWFS_TOT_F']
-	
-probs=dat['CDWFS_PROB_S']
-efluxsp=dat['CDWFS_E_FLUX_S_+']
-	
-probh=dat['CDWFS_PROB_H']
-efluxhp=dat['CDWFS_E_FLUX_H_+']
-
-print(np.min(totf[efluxfp==0.0]),np.max(totf[efluxfp==0.0]))
-plt.figure()
-plt.hist(totf[efluxfp==0.0])
-plt.show()
-sys.exit()
-
-print(len(ra[(efluxfp==0.0)]))
-#print(dat[(probf<cutf) & (efluxfp==0.0)])
-print(len(ra[(efluxsp==0.0)]))
-print(len(ra[(efluxhp==0.0)]))
-
-sys.exit()
-
-band = 'H'
-if band == 'F':
-	cutf = 10**(-4.63)
-elif band == 'S':
-	cutf = 10**(-4.57)
-else:
-	cutf = 10**(-4.40)
-
-with fits.open(wd+'CDWFS_I-Ks-3.6_v200109-cp.fits', mode='update') as cat:
-    # Change something in hdul.
-	dat=cat[1].data
-
-	ra=dat['CDWFS_RA']
-	probf=dat['CDWFS_PROB_'+band]
-	efluxfp=dat['CDWFS_E_FLUX_'+band+'_+']
-
-	old_net = dat['CDWFS_NET_'+band]
-	old_enetp = dat['CDWFS_E_NET_'+band+'_+']
-	old_enetn = dat['CDWFS_E_NET_'+band+'_-']
-	old_cr = dat['CDWFS_CR_'+band]
-	old_ecrp = dat['CDWFS_E_CR_'+band+'_+']
-	old_ecrn = dat['CDWFS_E_CR_'+band+'_-']
-	old_flux = dat['CDWFS_FLUX_'+band]
-	old_efluxn = dat['CDWFS_E_FLUX_'+band+'_-']
-	old_efluxp = dat['CDWFS_E_FLUX_'+band+'_+']
-
-	cts = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_TOT_'+band]
-	bkg = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_BKG_'+band]
-	av_exp = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_EXP_'+band]
-	av_ecf = dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_FLUX_'+band]/dat[(probf<cutf) & (efluxfp==0.0)]['CDWFS_CR_'+band]
-
-	e_cts_p=1+np.sqrt(cts+0.75) # Gehrels+86 1sigma errors
-	e_cts_n=np.sqrt(cts-0.25)
-	e_bkg_p=1+np.sqrt(bkg+0.75)
-
-	e_bkg_n=np.zeros_like(bkg)
-	e_bkg_n[bkg >= 0.25] = np.sqrt(bkg[bkg >= 0.25]-0.25)
-
-	net=cts-bkg
-	e_net_p=np.sqrt(e_cts_p**2+e_bkg_p**2) # Propagate the errors
-	e_net_n=np.sqrt(e_cts_n**2+e_bkg_n**2)
-
-	cr=net*1.1/av_exp
-	e_cr_p=e_net_p*1.1/av_exp # Propagate the errors
-	e_cr_n=e_net_n*1.1/av_exp
-
-	flux=cr*av_ecf
-	e_flux_p=e_cr_p*av_ecf
-	e_flux_n=e_cr_n*av_ecf
-	
-	old_net[(probf<cutf) & (efluxfp==0.0)] = net
-	old_enetp[(probf<cutf) & (efluxfp==0.0)] = e_net_p
-	old_enetn[(probf<cutf) & (efluxfp==0.0)] = e_net_n
-
-	old_cr[(probf<cutf) & (efluxfp==0.0)] = cr
-	old_ecrp[(probf<cutf) & (efluxfp==0.0)] = e_cr_p
-	old_ecrn[(probf<cutf) & (efluxfp==0.0)] = e_cr_n
-
-	old_flux[(probf<cutf) & (efluxfp==0.0)] = flux
-	old_efluxn[(probf<cutf) & (efluxfp==0.0)] = e_flux_n
-	old_efluxp[(probf<cutf) & (efluxfp==0.0)] = e_flux_p
-
-	cat.flush()  # changes are written back to original.fits
-
+#### SOME CALCULATIONS ON DUPLICATE SOURCES IN K BAND CATALOG SENT BY M. BROWN
+'''
+#cat = fits.open(wd+'/nway-master/Bootes_Ks_2014a_Idet_merged.fits')
+cat = fits.open('/Users/alberto/Downloads/drive-download-20200225T104432Z-001/Bootes_Ks_2014a_Idet_32_33.fits')
+dupl = cat[1].data['FLAG_DUPLICATE']
+name = cat[1].data['OBJNAME']
+ra = cat[1].data['ALPHA_J2000']
+dec = cat[1].data['DELTA_J2000']
 cat.close()
 
+ra_dupl = ra[dupl==1]
+dec_dupl = dec[dupl==1]
+name_dupl = name[dupl==1]
+
+points = np.array([ra_dupl,dec_dupl]).T
+
+#plt.figure()
+#plt.scatter(ra_dupl,dec_dupl,s=5)
+#plt.show()
+
+names,counts = np.unique(name_dupl, return_counts=True)
+print(len(name_dupl),len(names),len(names[counts>1]))
+print(names[counts==12])
+plt.figure()
+plt.hist(counts,bins=11)
+plt.show()
+
 sys.exit()
+'''
+
+#### COMPARE XBOOTES - CDWFS DISTANCES WITH POSITIONAL ERRORS
+'''
+cat = fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat2_200113.fits')
+data = cat[1].data
+cat.close()
+
+poserr = data['POS_ERR']
+dist = data['XB_CDWFS_D']
+dist = dist[dist > 0.]
+print(min(dist),max(dist))
+
+bins = np.logspace(np.log10(0.009), np.log10(15),20)
+
+plt.figure()
+plt.hist(dist, bins=bins, alpha=0.6, density=1)
+plt.hist(poserr, bins=bins, alpha=0.6, density=1)
+plt.xscale('log')
+plt.show()
+sys.exit()
+'''
 
 #### HOW MANY XBOOTES SOURCES WE GET WITH A GIVEN PROBABILITY CUT?
 '''
@@ -303,62 +282,53 @@ print(kenter_match, 'Kenter')
 sys.exit()
 '''
 
-#### CREATE REGION FILE
-'''
-# Open file
-band='broad'
-(ra,dec)=np.genfromtxt(wd+'poiss_rand_'+band+'_sim_indep_22-Nov-19_filtered_new.dat',unpack=True,skip_header=1, usecols=[1,2])
-w=open(wd+'poiss_rand_'+band+'_sim_indep_22-Nov-19_filtered_new.reg','w')
-for k in range(len(ra)):
-	w.write('circle('+str(ra[k])+'d,'+str(dec[k])+'d,2\") #color=magenta \n')
-w.close()
-sys.exit()
-'''
-
 #### ANALYSIS FOR ADI FOORD
 '''
-cat=fits.open(wd+'CDWFS_I-Ks-3.6_v120119.fits')
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_broad_r90_4reb.fits')
+data = cat[0].data
+cat.close()
+data=data[data>0]
+
+print('Fraction of area with theta<1:',round((len(data[data<=1.1])/len(data))*100.,2),'%')
+print('Fraction of area with theta<3:',round((len(data[data<=1.9])/len(data))*100.,2),'%')
+print('Fraction of area with theta<5:',round((len(data[data<=3.5])/len(data))*100.,2),'%')
+
+
+cat=fits.open(wd+'CDWFS_I-Ks-3.6_v200113.fits')
 data=cat[1].data
+id=data['CDWFS_ID']
 r90=data['CDWFS_R90_F']
 zspec=data['zsp']
 zphot=data['zph_G+A']
-totf=data['CDWFS_NET_F']
+netf=data['CDWFS_NET_F']
+cat.close()
+
+cut = 5.
+theta = 10.*np.sqrt((r90-1.)/10.)
 
 z = zspec.copy()
 flag = np.full(len(z),'sp')
 
 z[zspec==-99.]=zphot[zspec==-99.]
-
 flag[zspec==-99.] = 'ph'
 
-flag = flag[z!=-99.]
-theta = 10.*np.sqrt((r90-1.)/10.)
-theta = theta[z!=-99]
-totf = totf[z!=-99.]
-z = z[z!=-99.]
+print(len(id[(z!=-99.) & (theta<cut) & (netf>20.)]),'total')
+print(len(id[(z!=-99.) & (flag=='sp') & (theta<cut) & (netf>20.)]),'spec')
+print(len(id[(z!=-99.) & (flag=='ph') & (theta<cut) & (netf>20.)]),'phot')
+print(len(id[(z!=-99.) & (theta<cut) & (netf>20.) & (z<=1)]),'z<1')
+print(len(id[(z!=-99.) & (theta<cut) & (netf>20.) & (z>1) & (z<=2)]),'1<z<2')
+print(len(id[(z!=-99.) & (theta<cut) & (netf>20.) & (z>2) & (z<=3)]),'2<z<3')
+print(len(id[(z!=-99.) & (theta<cut) & (netf>20.) & (z>3)]),'z>3')
 
-print(len(z[z>=2]), 'sources z>2')
-print(len(z[z>=3]), 'sources z>3')
-print(len(totf[totf>30.]), 'sources NET_F>30')
-sys.exit()
-
-cut = 5.
-
-oaa5 = theta[theta<cut]
-z_oaa5 = z[theta<cut]
-zsp_oaa5 = z[(theta<cut) & (flag=='sp')]
-zph_oaa5 = z[(theta<cut) & (flag=='ph')]
-print(len(z_oaa5), len(zsp_oaa5), len(zph_oaa5))
-print(len(zsp_oaa5[zsp_oaa5<1]), len(zsp_oaa5[zsp_oaa5<2]), len(zsp_oaa5[zsp_oaa5<3]))
-print(len(z_oaa5[z_oaa5<1]), len(z_oaa5[z_oaa5<2]), len(z_oaa5[z_oaa5<3]))
 bins = np.linspace(0,5,21)
 
 plt.figure()
-plt.hist(z_oaa5, bins = bins, histtype='step', linewidth = 3, color='k')
-plt.hist(zsp_oaa5, bins=bins, histtype='step', linewidth = 1, color='b', label='Spec')
-plt.hist(zph_oaa5, bins=bins, histtype='step', linewidth = 1, color='r', label='Phot')
+plt.hist(z[(z!=-99.) & (theta<cut) & (netf>20.)], bins = bins, histtype='step', linewidth = 3, color='k')
+plt.hist(z[(z!=-99.) & (flag=='sp') & (theta<cut) & (netf>20.)], bins=bins, histtype='step', linewidth = 1, color='b', label='Spec-z')
+plt.hist(z[(z!=-99.) & (flag=='ph') & (theta<cut) & (netf>20.)], bins=bins, histtype='step', linewidth = 1, color='r', label='Photo-z')
 plt.legend()
 plt.xlabel('Redshift', fontsize=12)
+plt.ylabel('Number', fontsize=12)
 plt.tight_layout()
 plt.show()
 sys.exit()
@@ -413,167 +383,8 @@ sys.exit()
 '''
 
 #### Plot dNdS AND FIT THE NORMALIZATION?
+
 '''
-band = 'hard'
-cut = 1e-4
-
-# Real data
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
-data=cat[1].data
-if band == 'broad':
-	ra =  data['RA']
-	dec = data['DEC']
-	exp = data['EXP_F']
-	tot = data['TOT_F']
-	bkg = data['BKG_F']
-	cr = data['CR_F']
-	flux1 = data['FLUX_F']
-	eflux1 = data['E_FLUX_F_+']
-	prob = data['PROB_F']
-elif band == 'soft':
-	ra =  data['RA']
-	dec = data['DEC']
-	exp = data['EXP_S']
-	tot = data['TOT_S']
-	bkg = data['BKG_S']
-	cr = data['CR_S']
-	flux1 = data['FLUX_S']
-	eflux1 = data['E_FLUX_S_+']
-	prob = data['PROB_S']
-else:
-	ra =  data['RA']
-	dec = data['DEC']
-	exp = data['EXP_H']
-	tot = data['TOT_H']
-	bkg = data['BKG_H']
-	cr = data['CR_H']
-	flux1 = data['FLUX_H']
-	eflux1 = data['E_FLUX_H_+']
-	prob = data['PROB_H']
-	probf = data['PROB_F']
-	probs = data['PROB_S']
-cat.close()
-
-# Apply probability cut
-ra = ra[prob <= cut]
-dec = dec[prob <= cut]
-exp = exp[prob <= cut]
-tot = tot[prob <= cut]
-bkg = bkg[prob <= cut]
-cr = cr[prob <= cut]
-eflux1 = eflux1[prob <= cut]
-flux1 = flux1[prob <= cut]
-prob1 = prob[prob <= cut]
-
-# Exclude upper limits
-ra = ra[eflux1 != 0]
-dec = dec[eflux1 != 0]
-exp = exp[eflux1 != 0]
-tot = tot[eflux1 != 0]
-bkg = bkg[eflux1 != 0]
-cr = cr[eflux1 != 0]
-flux0 = flux1[eflux1 != 0]
-prob0 = prob1[eflux1 != 0]
-eflux0 = eflux1[eflux1 != 0]
-
-print(len(flux0), 'sources before SNR cut')
-
-# Apply a SNR cut
-
-snr_cut = 2.5
-net = tot-bkg
-snr = net/bkg
-
-ra = ra[snr > snr_cut]
-dec = dec[snr > snr_cut]
-exp = exp[snr > snr_cut]
-tot = tot[snr > snr_cut]
-bkg = bkg[snr > snr_cut]
-cr = cr[snr > snr_cut]
-flux0 = flux0[snr > snr_cut]
-prob0 = prob0[snr > snr_cut]
-eflux0 = eflux0[snr > snr_cut]
-
-print(len(flux0), 'sources after SNR cut')
-
-# Apply an exposure cut
-#expo_cut = 9e4
-
-#ra = ra[exp < expo_cut]
-#dec = dec[exp < expo_cut]
-#tot = tot[exp < expo_cut]
-#bkg = bkg[exp < expo_cut]
-#cr = cr[exp < expo_cut]
-#flux0 = flux0[exp < expo_cut]
-#prob0 = prob0[exp < expo_cut]
-#probf = probf[exp < expo_cut]
-#probs = probs[exp < expo_cut]
-#eflux0 = eflux0[exp < expo_cut]
-#exp = exp[exp < expo_cut]
-
-
-print(np.min(flux0),np.max(flux0))
-
-if band == 'soft':
-	bins = np.logspace(-16,-12,51)
-else:
-	bins = np.logspace(-15,-12,41)
-x = list((bins[i+1]+bins[i])/2. for i in range(len(bins)-1))
-x = np.array(x)
-x0,y0 = np.genfromtxt(wd+'cdwfs_'+band+'_sens_r90.dat',unpack=True)
-sens = np.interp(x,x0,y0)
-
-# Check the interpolation
-#plt.figure()
-#plt.plot(x0,y0,'ko')
-#plt.plot(x,sens,'r+')
-#plt.xscale('log')
-#plt.show()
-#sys.exit()
-
-
-a,b = np.histogram(flux0, bins = bins)
-
-c = a/sens
-
-y = list(reversed(np.cumsum(list(reversed(c)))))
-
-
-#x,y,ey = np.genfromtxt(wd+'cdwfs_lognlogs_'+band+'_cutexp8e4.dat',unpack=True)
-(civx_lo,civy_lo)=np.genfromtxt(wd+'civano_lognlogs_'+band+'_lo.txt',unpack=True)
-(civx_hi,civy_hi)=np.genfromtxt(wd+'civano_lognlogs_'+band+'_hi.txt',unpack=True)
-
-civy_hi2 = np.interp(civx_lo, civx_hi, civy_hi)
-
-if band == 'hard':
-	x = x/0.75 # convert from 2-7 to 2-10 using Gamma = 1.8
-	#x = x/6.887E-01 # convert from 2-7 to 2-10 using Gamma = 1.4
-	
-	#x = x*1.615 # convert from 0.5-2 to 2-10 using Gamma = 1.8
-	#x = x*2.955 # convert from 0.5-2 to 2-10 using Gamma = 1.4
-	
-y = y*(x/1e-14)**1.5
-#ey = ey*(x/1e-14)**1.5
-
-plt.figure()
-#plt.errorbar(x,y,yerr=ey,marker='o',color='k',linestyle='None',label='CDWFS')
-plt.plot(x,y,marker='o',color='k',linestyle='None',label='CDWFS')
-plt.fill_between(civx_lo,civy_lo,civy_hi2,color='red',alpha = 0.3,label='Civano+16')
-plt.xscale('log')
-plt.yscale('log')
-if band == 'soft':
-	plt.xlabel('0.5-2 keV Flux')
-elif band == 'hard':
-	plt.xlabel('2-10 keV Flux')
-
-plt.ylabel('N(>S)*S^1.5')
-plt.axis([3e-17,1e-12,1,500])
-plt.legend()
-plt.show()
-
-sys.exit()
-
-
 # Function to compute dN/dS given parameters
 def dnds(fx,k):
 
@@ -595,6 +406,7 @@ def dnds(fx,k):
 		aux[fx > fb] = k1*(fx[fx > fb]/fref)**b2
 		return np.log10(aux)
 
+band = 'hard'
 x,y,ey = np.genfromtxt(wd+'cdwfs_dnds_'+band+'.dat',unpack=True)
 y = y[x<1e-12]
 ey = ey[x<1e-12]
@@ -620,6 +432,292 @@ plt.plot(x0,fit,'b-')
 plt.show()
 sys.exit()
 '''
+
+# Define the binning for everything 
+bins00=np.logspace(np.log10(5e-17),np.log10(5e-13),51) # Check the limits here based on detected sources?
+centers00=list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
+centers00=np.array(centers00)
+ds00 = list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
+ds00 = np.array(ds00)
+area = 9.3
+
+# SIMULATIONS
+'''
+nsim=10
+
+x = list((bins00[i+1]+bins00[i])/2. for i in range(len(bins00)-1))
+x = np.array(x)
+bands = ['broad','soft','hard']
+f,ax = plt.subplots(2,len(bands), sharex=True, sharey='row', figsize=(11,5))
+i = -1
+for band in bands:
+	i = i+1
+	if band == 'broad':
+		cut = 10**(-4.63)
+		bb = 'F'
+		bins = np.logspace(-15,-12,41)
+		inppars=[-1.34,-2.35,8.1e-15] # broad Lehmer's dN/dS params
+	elif band == 'soft':
+		cut = 10**(-4.57)
+		bb = 'S'
+		bins = np.logspace(-15.5,-12,51)
+		inppars=[-1.49,-2.48,6.0e-15] # soft
+	else:
+		cut = 10**(-4.40)
+		bb = 'H'
+		bins = np.logspace(-15,-12,41)
+		inppars=[-1.32,-2.55,6.4e-15] # hard
+		
+	logcut = np.log10(cut)
+
+	#ncum_in = list(reversed(np.cumsum(list(reversed(dnds(x,inppars)*ds00)))))
+	#y_in = ncum_in*(x/1e-14)**1.5
+	poiss_env = []
+	
+	for date in ['22-Nov-19','06-Dec-19','12-Dec-19']:
+		if date == '06-Dec-19':
+			col0 = 'orange'
+			col1 = 'lightblue'
+		elif date == '12-Dec-19':
+			col0 = 'red'
+			col1 = 'royalblue'
+		else:
+			col0 = 'gold'
+			col1 = 'turquoise'
+		y_in, y_in_poiss = np.genfromtxt(wd+'lognlogs_'+band+'_sim_indep_'+date+'_input.dat',unpack=True,usecols=[1,2])
+		y_boot2, y_easy2 = [],[]
+		poiss_env.append(y_in_poiss*(x/1.e-14)**(-1.5))
+	
+		for k in range(nsim):
+			y = np.genfromtxt(wd+str(k)+'lognlogs_'+band+'_sim_indep_'+date+'_easyway.dat',unpack=True,usecols=1)
+			y_easy2.append(y*(x/1.e-14)**(-1.5))
+		
+			y_boot, y_boot_err = np.genfromtxt(wd+str(k)+'lognlogs_'+band+'_sim_indep_'+date+'_bootstr.dat',unpack=True,usecols=[1,2])
+			y_boot2.append(y_boot*(x/1.e-14)**(-1.5))
+		
+			#plt.plot(x,y,marker='o',color=col0,linestyle='None',label='Easy way')
+			#plt.errorbar(x,y_boot,yerr=y_boot_err,marker='o',color=col1,linestyle='None',label='Bootstrap')
+		med_boot, med_easy = [],[]
+		sigma_boot, sigma_easy = [],[]
+		sigma_boot2 = []
+		for j in range(len(np.array(y_boot2).T)): # for each bin, get the median and sigma
+			med_boot.append(np.median(np.array(y_boot2).T[j]))
+			sigma_boot.append(np.std(np.array(y_boot2).T[j]))
+			med_easy.append(np.median(np.array(y_easy2).T[j]))
+			sigma_easy.append(np.std(np.array(y_easy2).T[j]))
+
+		upper_boot = np.array(med_boot) + np.array(sigma_boot)
+		lower_boot = np.array(med_boot) - np.array(sigma_boot)
+		upper_easy = np.array(med_easy) + np.array(sigma_easy)
+		lower_easy = np.array(med_easy) - np.array(sigma_easy)
+		
+		med_easy2=np.array(med_easy)
+		sigma_easy2=np.array(sigma_easy)
+		
+		med_easy3 = med_easy2[np.isnan(med_easy2)==False]
+		sigma_easy3 = sigma_easy2[np.isnan(med_easy2)==False]
+		x_easy = x[np.isnan(med_easy2)==False]
+		
+		sigma_easy3[sigma_easy3>med_easy3] = 0
+		
+		ax[0][i].errorbar(x_easy,med_easy3,yerr=sigma_easy3,marker='.',color=col0,linestyle='None',label='Standard')
+		ax[0][i].errorbar(x,med_boot,yerr=sigma_boot,marker='.',color=col1,linestyle='None',label='Non-standard')
+		
+		# 1 is the bottom row [row][column]
+		ratio_easy = np.array(med_easy3)/(y_in[np.isnan(med_easy2)==False]*(x_easy/1.e-14)**(-1.5))
+		ratio_easy_err = np.array(sigma_easy3)/(y_in[np.isnan(med_easy2)==False]*(x_easy/1.e-14)**(-1.5))
+		ratio_boot = np.array(med_boot)/(y_in*(x/1.e-14)**(-1.5))
+		ratio_boot_err = np.array(sigma_boot)/(y_in*(x/1.e-14)**(-1.5))
+		ax[1][i].errorbar(x_easy,ratio_easy,yerr=ratio_easy_err,marker='.',color=col0,linestyle='-',label='Standard')
+		ax[1][i].errorbar(x,ratio_boot,yerr=ratio_boot_err,marker='.',color=col1,linestyle='-',label='Non-standard')
+		ax[1][i].axhline(y=1,color='k')
+		ax[1][i].axis([4e-17,2e-12,0.4,2.1])
+		
+		
+	poiss_up, poiss_lo =[],[]
+	for j in range(len(np.array(poiss_env).T)):
+		poiss_up.append(np.max(np.array(poiss_env).T[j]))
+		poiss_lo.append(np.min(np.array(poiss_env).T[j]))
+	ratio_poiss_up = np.array(poiss_up)/(y_in*(x/1.e-14)**(-1.5))
+	ratio_poiss_lo = np.array(poiss_lo)/(y_in*(x/1.e-14)**(-1.5))
+	
+	ax[0][i].fill_between(x,poiss_lo,poiss_up,facecolor='gray',alpha=0.6)
+	ax[1][i].fill_between(x,ratio_poiss_lo,ratio_poiss_up,facecolor='gray',alpha=0.6)
+	ax[0][i].plot(x,y_in*(x/1.e-14)**(-1.5),color='k',linestyle='-',linewidth=2,label='Input',zorder=-1)
+
+	ax[0][i].set_xscale('log')
+	ax[0][i].set_yscale('log')
+	ax[0][i].axis([4e-17,2e-12,0.05,2e4])
+	ax[0][i].tick_params(axis='both',which='both',direction='in',top=True,right=True, labelsize=12)
+	ax[0][i].tick_params(axis='both',which='major',length=6)
+	ax[0][i].tick_params(axis='both',which='minor',length=4)
+	ax[1][i].tick_params(axis='both',which='both',direction='in',top=True,right=True, labelsize=12)
+	ax[1][i].tick_params(axis='both',which='major',length=6)
+	ax[1][i].tick_params(axis='both',which='minor',length=4)
+
+	
+	if band == 'soft':
+		ax[1][i].set_xlabel('0.5-2 keV Flux (erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+	elif band == 'hard':
+		ax[1][i].set_xlabel('2-7 keV Flux (erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+	else:
+		ax[1][i].set_xlabel('0.5-7 keV Flux (erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+		ax[0][i].set_ylabel(r'N(>S) (deg$^{-2}$)', fontsize=12)
+		ax[1][i].set_ylabel('Output/Input', fontsize=12)
+	
+markersize=20
+#create collection of circles corresponding to markers
+circles = collections.CircleCollection([markersize] * 3, facecolor = ['orange','red','gold'])
+circles2 = collections.CircleCollection([markersize] * 3, facecolor = ['lightblue','royalblue','turquoise'])
+#make the legend -- scatterpoints needs to be the same as the number 
+#of markers so that all the markers show up in the legend
+ax[0][2].legend([circles, circles2], ['Standard', 'Non Standard'],loc=1, scatterpoints = 3, scatteryoffsets = [.5], handlelength = 3)
+
+plt.tight_layout()
+plt.subplots_adjust(wspace=0,hspace=0)
+plt.savefig(wd+'sims_lognlogs.pdf',format='pdf')
+#plt.show()
+
+sys.exit()
+'''
+
+# Real data
+
+bands = ['broad','soft','hard']
+f,ax = plt.subplots(1,len(bands), sharex=True, sharey=True, figsize=(11,3))
+j=-1
+for band in bands:
+	j=j+1
+	if band == 'broad':
+		bb ='F'
+		cut = 10**(-4.63)
+	elif band =='soft':
+		bb = 'S'
+		cut = 10**(-4.57)
+	else:
+		bb = 'H'
+		cut = 10**(-4.40)
+
+	logcut = np.log10(cut)
+
+	cat=fits.open(wd+'CDWFS_I-Ks-3.6_v200113.fits')
+	data=cat[1].data
+
+	ra =  data['CDWFS_RA']
+	dec = data['CDWFS_DEC']
+	exp = data['CDWFS_EXP_'+bb]
+	tot = data['CDWFS_TOT_'+bb]
+	bkg = data['CDWFS_BKG_'+bb]
+	cr = data['CDWFS_CR_'+bb]
+	flux = data['CDWFS_FLUX_'+bb]
+	prob = data['CDWFS_PROB_'+bb]
+
+	cat.close()
+	
+	# Apply probability cut
+	ra = ra[prob <= cut]
+	dec = dec[prob <= cut]
+	exp = exp[prob <= cut]
+	tot = tot[prob <= cut]
+	bkg = bkg[prob <= cut]
+	cr = cr[prob <= cut]
+	flux1 = flux[prob <= cut]
+	prob1 = prob[prob <= cut]
+
+	print(len(flux1), 'sources before SNR cut')
+
+	# Apply a SNR cut
+	'''
+	snr_cut = 3.0
+	net = tot-bkg
+	snr = net/bkg
+
+	ra = ra[snr > snr_cut]
+	dec = dec[snr > snr_cut]
+	exp = exp[snr > snr_cut]
+	tot = tot[snr > snr_cut]
+	bkg = bkg[snr > snr_cut]
+	cr = cr[snr > snr_cut]
+	flux1 = flux1[snr > snr_cut]
+	prob1 = prob1[snr > snr_cut]
+	'''
+	print(len(flux1), 'sources after SNR cut')
+
+	# Apply an exposure cut
+	'''
+	#expo_cut = 9e4
+
+	#ra = ra[exp < expo_cut]
+	#dec = dec[exp < expo_cut]
+	#tot = tot[exp < expo_cut]
+	#bkg = bkg[exp < expo_cut]
+	#cr = cr[exp < expo_cut]
+	#flux0 = flux0[exp < expo_cut]
+	#prob0 = prob0[exp < expo_cut]
+	#probf = probf[exp < expo_cut]
+	#probs = probs[exp < expo_cut]
+	#eflux0 = eflux0[exp < expo_cut]
+	#exp = exp[exp < expo_cut]
+	'''
+
+	x0,y0 = np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_civ.dat',unpack=True)
+	sens = np.interp(centers00,x0,y0)
+
+	a,b = np.histogram(flux1, bins = bins00)
+	c = a/sens
+	y = list(reversed(np.cumsum(list(reversed(c)))))
+
+	if band != 'broad':
+		(civx_lo,civy_lo)=np.genfromtxt(wd+'civano_lognlogs_'+band+'_lo.txt',unpack=True)
+		(civx_hi,civy_hi)=np.genfromtxt(wd+'civano_lognlogs_'+band+'_hi.txt',unpack=True)
+
+		civy_hi2 = np.interp(civx_lo, civx_hi, civy_hi)
+
+	geos,geon = np.genfromtxt(wd+'geo_lognlogs_'+band+'.txt',unpack=True)
+	if band == 'broad':
+		geos = 8.455E-01*geos # convert from 0.5-10 to 0.5-7, Gamma = 1.8
+
+	if band == 'hard':
+		geos = 0.75*geos # convert from 2-10 to 2-7, Gamma = 1.8
+		civx_lo2 = 0.75*civx_lo # convert from 2-10 to 2-7, Gamma = 1.8
+		#centers00 = centers00/0.75 # convert from 2-7 to 2-10 using Gamma = 1.8
+	#x = x/6.887E-01 # convert from 2-7 to 2-10 using Gamma = 1.4
+
+	# Non-standard LogNlogS
+	lgnlgs,e_lgnlgs = np.genfromtxt(wd+'cdwfs_lognlogs_'+band+'.dat',unpack=True, usecols=[1,2])
+	lgnlgs_secure = lgnlgs[centers00 >= np.min(flux1)]
+	e_lgnlgs_secure = e_lgnlgs[centers00 >= np.min(flux1)]
+
+	lgnlgs_unsecure = lgnlgs[centers00 < np.min(flux1)]
+	e_lgnlgs_unsecure = e_lgnlgs[centers00 < np.min(flux1)]
+
+	ax[j].plot(centers00,y,marker='.',color='k',linestyle='None',label='Standard')
+	ax[j].errorbar(centers00[centers00 >= np.min(flux1)],lgnlgs_secure,yerr=e_lgnlgs_secure,marker='.',color='b',linestyle='None',label='Non-standard, above flux limit')
+	ax[j].errorbar(centers00[centers00 < np.min(flux1)],lgnlgs_unsecure,yerr=e_lgnlgs_unsecure,marker='o',markerfacecolor='None',markeredgecolor='blue',linestyle='None',label='Non-standard, below flux limit')
+	ax[j].plot(geos,geon,'r-',label='Georgakakis+08')
+	ax[j].set_xscale('log')
+	ax[j].set_yscale('log')
+	ax[j].tick_params(axis='both',which='both',direction='in',top=True,right=True, labelsize=12)
+	ax[j].tick_params(axis='both',which='major',length=6)
+	ax[j].tick_params(axis='both',which='minor',length=4)
+	if band == 'soft':
+		ax[j].set_xlabel('0.5-2 keV Flux (erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+		ax[j].fill_between(civx_lo,civy_lo/(civx_lo/1e-14)**1.5,civy_hi2/(civx_lo/1e-14)**1.5,color='red',alpha = 0.3,label='Other surveys')
+	elif band == 'hard':
+		ax[j].set_xlabel('2-7 keV Flux (erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+		ax[j].fill_between(civx_lo2,civy_lo/(civx_lo/1e-14)**1.5,civy_hi2/(civx_lo/1e-14)**1.5,color='red',alpha = 0.3,label='Other surveys')
+	else:
+		ax[j].set_xlabel('0.5-7 keV Flux (erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
+		ax[j].set_ylabel(r'N(>S) (deg$^{-2}$)', fontsize=12)
+	ax[j].axis([5e-17,2e-12,0.1,9e3])
+plt.tight_layout()
+plt.subplots_adjust(wspace=0)
+plt.legend()
+plt.savefig(wd+'dat_lognlogs.pdf',format='pdf')
+#plt.show()
+
+sys.exit()
+
 
 #### SENSITIVITY, COMPARISON WITH XBOOTES
 '''
@@ -760,7 +858,7 @@ sys.exit()
 '''
 
 #### SENSITIVITY, COMPARE GEORGAKAKIS WITH SIMULATIONS
-
+'''
 band = ['broad','soft','hard']
 logcut=['-4.6','-4.6','-4.4']
 type=['sim_indep_22-Nov-19','sim_indep_06-Dec-19','sim_indep_12-Dec-19']
@@ -813,15 +911,15 @@ plt.subplots_adjust(wspace=0)
 #plt.show()
 plt.savefig(wd+'sens.pdf',format='pdf')
 sys.exit()
-
+'''
 
 #### GAMMA - ENERGY CONVERSION FACTORS ACROSS CHANDRA CYCLES
 '''
-#gamma=np.genfromtxt(wd+'poiss_rand_lehmer_filtered.dat',unpack=True,skip_header=1,usecols=3)
+#gamma=np.genfromtxt(wd+'inp_list_sim/poiss_rand_broad_sim_indep_12-Dec-19_filtered_exp.dat',unpack=True,usecols=4)
 #plt.figure()
-#plt.hist(gamma,bins=20)
-#plt.xlabel('Photon Index',fontsize=15)
-#plt.tick_params(which='both',direction='inout',length=8,labelsize=15)
+#plt.hist(gamma,bins=11,density=1)
+#plt.xlabel('Photon Index',fontsize=12)
+#plt.tick_params(which='both',direction='inout',length=8,labelsize=12)
 #plt.tight_layout()
 #plt.show()
 #sys.exit()
@@ -1216,7 +1314,7 @@ sys.exit()
 
 #### PLOTS WITH THE MERGED X-RAY CATALOG
 '''
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat1_exp-psf.fits')
+cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat2_200113.fits')
 ra=cat[1].data['RA']
 dec=cat[1].data['DEC']
 r90f=cat[1].data['R90_F']
@@ -1249,72 +1347,67 @@ probs0=cat[1].data['PROB_S']
 probh0=cat[1].data['PROB_H']
 
 print('The CDWFS catalog contains',len(ra),'X-ray point sources.')
-#poserr=poserr[fluxf>0]
-#ectsf_u=ectsf_u[ctsf>0]
-#ctsf=ctsf[ctsf>0]
-#ectss_u=ectss_u[ctss>0]
-#ctss=ctss[ctss>0]
-#ectsh_u=ectsh_u[ctsh>0]
-#ctsh=ctsh[ctsh>0]
-#probf=probf[fluxf>0]
-
-#hrb=hr[fluxf>0]
-#fluxf=fluxf[fluxf>0]
-#fluxs=fluxs[fluxs>0]
-#fluxh=fluxh[fluxh>0]
-
-#fluxf2=fluxf[hrb!=-99]
-#hr2=hrb[hrb!=-99]
-
 
 # X-ray Flux distributions
-fluxf=fluxf0[efluxfp0!=0]
-fluxs=fluxs0[efluxsp0!=0]
-fluxh=fluxh0[efluxhp0!=0]
-probf = probf0[efluxfp0!=0]
-probs = probs0[efluxsp0!=0]
-probh = probh0[efluxhp0!=0]
+cutf, cuts, cuth = 10**(-4.63), 10**(-4.57), 10**(-4.40)
 
-fluxf=fluxf[probf < 1e-4]
-fluxs=fluxs[probs < 1e-4]
-fluxh=fluxh[probh < 1e-4]
+fluxf=fluxf0[probf0 <= cutf]
+fluxs=fluxs0[probs0 <= cuts]
+fluxh=fluxh0[probh0 <= cuth]
 
 print('F flux range:',np.min(fluxf),np.max(fluxf))
 print('S flux range:',np.min(fluxs),np.max(fluxs))
 print('H flux range:',np.min(fluxh),np.max(fluxh))
 
-print(len(fluxf[fluxf > 5e-13]),'sources in the F band with F>5e-13')
-print(len(fluxs[fluxs > 5e-13]),'sources in the S band with F>5e-13')
-print(len(fluxh[fluxh > 5e-13]),'sources in the H band with F>5e-13')
+print(len(fluxf[fluxf > 7.5e-13]),'sources in the F band with F>5e-13')
+print(len(fluxs[fluxs > 7.5e-13]),'sources in the S band with F>5e-13')
+print(len(fluxh[fluxh > 7.5e-13]),'sources in the H band with F>5e-13')
 
-bins=np.logspace(np.log10(1e-16),np.log10(5e-13),40)
+ylabs = ['1','10','100']
+yticks = [1,10,100]
+bins=np.logspace(np.log10(1e-16),np.log10(7.5e-13),50)
 
-f,ax=plt.subplots(3,sharex=True,sharey=True)
+f,ax=plt.subplots(3,sharex=True,sharey=False)
 ax[0].hist(fluxf,bins=bins,histtype='step',linewidth=3,color='k')
 ax[0].axvline(x = np.min(fluxf),linewidth = 3, linestyle ='dashed', color='k')
+ax[0].set_ylabel('Number',fontsize=12)
+ax[0].set_yscale('log')
 #ax[0].axvline(x = np.max(fluxf),linewidth = 3, linestyle ='dashed', color='k')
-ax[0].tick_params(which='major',direction='inout',length=7,labelsize=13)
-ax[0].tick_params(which='minor',direction='inout',length=4,labelsize=13)
-ax[0].annotate('0.5-7 keV',xy=(7e-14,500),fontsize=13)
+ax[0].tick_params(which='major',direction='inout',top=True,length=7,labelsize=13)
+ax[0].tick_params(which='minor',direction='inout',top=True,length=4,labelsize=13)
+ax[0].set_yticks(yticks)
+ax[0].set_yticklabels(ylabs)
+ax[0].annotate('0.5-7 keV',xy=(1e-13,200),fontsize=13)
 
 ax[1].hist(fluxs,bins=bins,histtype='step',linewidth=3,color='r')
 ax[1].axvline(x = np.min(fluxs),linewidth = 3, linestyle ='dashed', color='r')
+ax[1].set_ylabel('Number',fontsize=12)
+ax[1].set_yscale('log')
 #ax[1].axvline(x = np.max(fluxs),linewidth = 3, linestyle ='dashed', color='r')
 ax[1].tick_params(which='major',direction='inout',top=True,length=7,labelsize=13)
 ax[1].tick_params(which='minor',direction='inout',top=True,length=4,labelsize=13)
-ax[1].annotate('0.5-2 keV',xy=(7e-14,400),fontsize=13)
+ax[1].set_yticks(yticks)
+ax[1].set_yticklabels(ylabs)
+ax[1].annotate('0.5-2 keV',xy=(1e-13,150),fontsize=13)
 
 ax[2].hist(fluxh,bins=bins,histtype='step',linewidth=3,color='b')
 ax[2].axvline(x = np.min(fluxh),linewidth = 3, linestyle ='dashed', color='b')
 #ax[2].axvline(x = np.max(fluxh),linewidth = 3, linestyle ='dashed', color='b')
 ax[2].set_xlabel(r'Flux [erg cm$^{-2}$ s$^{-1}$]',fontsize=12)
+ax[2].set_ylabel('Number',fontsize=12)
 ax[2].set_xscale('log')
+ax[2].set_yscale('log')
 ax[2].tick_params(which='major',direction='inout',top=True,length=8,labelsize=13)
 ax[2].tick_params(which='minor',direction='inout',top=True,length=4,labelsize=13)
-ax[2].annotate('2-7 keV',xy=(7e-14,400),fontsize=13)
+ax[2].set_yticks(yticks)
+ax[2].set_yticklabels(ylabs)
+ax[2].annotate('2-7 keV',xy=(1e-13,150),fontsize=13)
 plt.tight_layout()
 plt.subplots_adjust(hspace=0)
-plt.show()
+#plt.show()
+plt.savefig(wd+'fluxes.pdf', format='pdf')
+
+sys.exit()
 
 print('min(pos_err):',min(poserr),'max(pos_err):',max(poserr))
 print('median(pos_err):',np.median(poserr))
@@ -1584,41 +1677,47 @@ sys.exit()
 '''
 
 #### BREAKDOWN OF THE COMPOSITION OF THE X-RAY CATALOG IN F,S,H COMBINATIONS
+'''
+cat=fits.open(wd+'CDWFS_I-Ks-3.6_v200113.fits')
+id=cat[1].data['CDWFS_ID']
+ra=cat[1].data['CDWFS_RA']
+dec=cat[1].data['CDWFS_DEC']
+probf=cat[1].data['CDWFS_PROB_F']
+probs=cat[1].data['CDWFS_PROB_S']
+probh=cat[1].data['CDWFS_PROB_H']
+d_c_x = cat[1].data['CDWFS_XB_CDWFS_D']
 
-cat=fits.open(wd+'new_mosaics_detection/cdwfs_merged_cat2_exp-psf.fits')
-ra=cat[1].data['RA']
-dec=cat[1].data['DEC']
-r90=cat[1].data['R90_S']
-probf=cat[1].data['PROB_F']
-probs=cat[1].data['PROB_S']
-probh=cat[1].data['PROB_H']
 cutf,cuts,cuth=10**(-4.63),10**(-4.57),10**(-4.40)
+
+print(len(ra[(probf<=cutf) & (d_c_x != 0.0)]))
+print(len(ra[(probs<=cuts) & (d_c_x != 0.0)]))
+print(len(ra[(probh<=cuth) & (d_c_x != 0.0)]))
+sys.exit()
+
 fsh,fs,fh,sh,f,s,h=0,0,0,0,0,0,0
 for i in range(len(probf)):
-	if (probf[i] != 9999.0 and probf[i] <= cutf):
-		if (probs[i] != 9999.0 and probs[i] <= cuts):
-			if (probh[i] != 9999.0 and probh[i] <= cuth):
+	if probf[i] <= cutf:
+		if probs[i] <= cuts:
+			if probh[i] <= cuth:
 				fsh=fsh+1
 			else:
 				fs=fs+1
 		else:
-			if (probh[i] != 9999.0 and probh[i] <= cuth):
+			if probh[i] <= cuth:
 				fh=fh+1
 			else:
 				f=f+1
 	else:
-		if (probs[i] != 9999.0 and probs[i] <= cuts):
-			if (probh[i] != 9999.0 and probh[i] <= cuth):
+		if probs[i] <= cuts:
+			if probh[i] <= cuth:
 				sh=sh+1
-				print(ra[i],dec[i])
-				sys.exit()
 			else:
 				s=s+1
 		else:
-			if (probh[i] != 9999.0 and probh[i] <= cuth):
+			if probh[i] <= cuth:
 				h=h+1
 			else:
-				print('something wrong')
+				print('something wrong with',id[i],ra[i],dec[i],probf[i],probs[i],probh[i])
 print('fsh:',fsh)
 print('fs:',fs)
 print('fh:',fh)
@@ -1629,7 +1728,7 @@ print('h:',h)
 print('Total of combinations:',fsh+fs+fh+sh+f+s+h)
 #print(len(totf),len(totf[totf>=30.]))
 sys.exit()
-
+'''
 
 #### TEST THE INTERPOLATION OF THE GAMMA - CONVERSION FACTOR AND PLOT THE GAUSSIAN DISTRIB
 '''

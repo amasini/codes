@@ -323,20 +323,20 @@ for i in range(len(band)):
 		'''
 	else:
 		
-		ax.errorbar(bins,norm_sp,yerr=e_norm_sp,color='k')
 		ax.errorbar(bins,norm_re,yerr=e_norm_re,color='k')
+		ax.errorbar(bins,norm_sp,yerr=e_norm_sp,color='k')
 		ax.errorbar(bins,diff,yerr=e_diff,color='b')
 		
-		ax.errorbar(bins2,norm_sp2,yerr=e_norm_sp2,color='k',linestyle='dashed')
-		ax.errorbar(bins2,norm_re2,yerr=e_norm_re2,color='k',linestyle='dashed')
-		ax.errorbar(bins2,diff2,yerr=e_diff2,color='b',linestyle='dashed')
+		#ax.errorbar(bins2,norm_sp2,yerr=e_norm_sp2,color='k',linestyle='dashed')
+		#ax.errorbar(bins2,norm_re2,yerr=e_norm_re2,color='k',linestyle='dashed')
+		#ax.errorbar(bins2,diff2,yerr=e_diff2,color='b',linestyle='dashed')
 		
-		ax.errorbar(bins3,norm_sp3,yerr=e_norm_sp3,color='k',linestyle='dotted')
-		ax.errorbar(bins3,norm_re3,yerr=e_norm_re3,color='k',linestyle='dotted')
-		ax.errorbar(bins3,diff3,yerr=e_diff3,color='b',linestyle='dotted')
+		#ax.errorbar(bins3,norm_sp3,yerr=e_norm_sp3,color='k',linestyle='dotted')
+		#ax.errorbar(bins3,norm_re3,yerr=e_norm_re3,color='k',linestyle='dotted')
+		#ax.errorbar(bins3,diff3,yerr=e_diff3,color='b',linestyle='dotted')
 		
-		ax.axvline(x=peak_prob,color='red',linestyle='-')
-		ax.axvline(x=peak_prob2,color='red',linestyle='--')
+		#ax.axvline(x=peak_prob,color='red',linestyle='-')
+		#ax.axvline(x=peak_prob2,color='red',linestyle='--')
 		#ax.axhline(y=norm_sp[bins==peak_prob],xmin=xmin, color='red',linestyle='--')
 		ax.tick_params(top=True, direction='in')
 		ax.set_ylabel('Fraction')
@@ -344,7 +344,7 @@ for i in range(len(band)):
 		#ax.annotate('"Real"', xy=(-3.7,0.8))
 		#ax.annotate('Spurious', xy=(-2.2,0.6))
 		#ax.annotate('Difference', xy=(-2.0,0.25), color='blue')
-		ax.set_xlim([-8,0])
+		ax.set_xlim([-6,0])
 		ax.set_ylim([-0.1,1.1])
 		'''
 		locs, labels = plt.yticks() 

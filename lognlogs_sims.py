@@ -1,4 +1,3 @@
-#completeness and flux_in VS flux_out following Georgakakis+08
 # NEW VERSION, CLEANER AND HOPEFULLY FASTER
 import numpy as np
 import sys
@@ -12,6 +11,7 @@ from scipy.optimize import minimize
 import matplotlib as mpl
 from scipy.stats import kde
 
+'''##################### FUNCTIONS #####################'''
 # Function to compute distances in arcsec
 def distance(pointa, pointb):
     xx = np.cos(pointa[1]/180*3.141592)
@@ -115,12 +115,13 @@ def build_struct(params):
 			aux.append(params[i][j])
 		s.append(aux)
 	return s
-		
-wd = '/Users/alberto/Desktop/XBOOTES/'
 
+
+'''##################### INPUTS #####################'''
 # Important parameters
+wd = '/Users/alberto/Desktop/XBOOTES/'
 band = 'hard'
-simfolder = 'sim_indep_12-Dec-19/'
+simfolder = 'sim_indep_22-Nov-19/'
 use_outflux = True
 fit_dnds = True
 bootstrap = True
@@ -139,11 +140,8 @@ else:
 	inppars=[-1.32,-2.55,6.4e-15] # hard
 cut = 10**logcut
 
-flux_inp,flux_out=[],[]
-input=[]
-tots,bkgs,expos,crs=[],[],[],[]
-flux_limit = []
-probabilities = []
+
+'''##################### MAIN #####################'''
 print('Starting to match '+str(nsim)+' sims in the '+band+' band...')
 
 # Define the binning for everything 
@@ -156,15 +154,17 @@ area = 9.3
 
 t_in=time.time()
 
-##########################
-##### Start matching #####
-spurious,rr = [],[]
 for k in range(nsim):
-	if nsim == 1:
-		#k = int(np.random.uniform(0,10)) # choose a random sim
-		k = 0
+
+	input,flux_inp,flux_out=[],[],[]
+	
+	tots,bkgs,expos,crs=[],[],[],[]
+	probabilities = []
+
 	print(k+1, end=" ")
-	flux_inp2=[]
+	
+	##########################
+	##### Start matching #####
 	# Take catalog of detected sources
 	cat1 = fits.open(wd+simfolder+str(k)+'cdwfs_'+band+'_sim_cat1_exp-psf.fits')
 	
@@ -175,30 +175,22 @@ for k in range(nsim):
 	
 	# Cut detected sample at a given probability threshold 
 	simdata = simdata[prob <= cut]
-	print(len(simdata),'above threshold ('+str(round(logcut,1))+')')
-	
-	# Take the flux limit of the detected sources
-	flux_limit.append(np.min(simdata['FLUX']))
+	print(len(simdata),'above threshold ('+str(round(logcut,2))+')')
 	
 	# Input sources depend on band and simfolder
-	#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'poiss_rand_'+band+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])	
-	#(flux_cdwfs,ra_cdwfs,dec_cdwfs)=np.genfromtxt(wd+'inp_list_sim/poiss_rand_'+band+'_'+simfolder[:-1]+'_filtered_new.dat',unpack=True,skip_header=1,usecols=[0,1,2])
 	(flux_cdwfs,ra_cdwfs,dec_cdwfs,exp_cdwfs)=np.genfromtxt(wd+'inp_list_sim/poiss_rand_'+band+'_'+simfolder[:-1]+'_filtered_exp.dat',unpack=True,skip_header=1,usecols=[0,1,2,5])	
-	#print(len(flux_cdwfs))
+
 	ra_cdwfs = ra_cdwfs[exp_cdwfs >= 1800.]
 	dec_cdwfs = dec_cdwfs[exp_cdwfs >= 1800.]
-	flux_cdwfs2 = flux_cdwfs[exp_cdwfs >= 1800.]
-	#print(len(flux_cdwfs2))	
-	#sys.exit()
-	input.append(flux_cdwfs2)
+	flux_cdwfs = flux_cdwfs[exp_cdwfs >= 1800.]
 	
-	#print(ra_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
-	#print(dec_cdwfs[(flux_cdwfs>2.4e-13) & (flux_cdwfs<3e-13)])
+	# This is the array of the input (precise) fluxes
+	input.append(flux_cdwfs)
 	
 	# Sort them to start from the bright ones
 	ra_cdwfs=ra_cdwfs[::-1]
 	dec_cdwfs=dec_cdwfs[::-1]
-	flux_cdwfs2=flux_cdwfs2[::-1]
+	flux_cdwfs=flux_cdwfs[::-1]
 	
 	unmatched,blendings=0,0
 
@@ -214,7 +206,7 @@ for k in range(nsim):
 		
 		filt_sim=simdata[(simdata['RA'] >= ra_cdwfs[i]-delta) & (simdata['RA'] <= ra_cdwfs[i]+delta) & (simdata['DEC'] >= dec_cdwfs[i]-delta) & (simdata['DEC'] <= dec_cdwfs[i]+delta)]
 		
-		counterparts,distances,mat_rad,counts,countsbkg,exposures,countrates=[],[],[],[],[],[],[]
+		counterparts,distances=[],[]
 		for j in range(len(filt_sim['RA'])):
 			cdwfs_source=[filt_sim['RA'][j],filt_sim['DEC'][j]]
 			
@@ -238,8 +230,8 @@ for k in range(nsim):
 		if found == 1:
 			if len(counterparts) == 1:
 				
-				flux_inp.append(flux_cdwfs2[i])
-				flux_inp2.append(flux_cdwfs2[i])
+				flux_inp.append(flux_cdwfs[i])
+
 				deff.append(distances[0])
 				
 				flux_out.append(counterparts[0][13])
@@ -253,8 +245,7 @@ for k in range(nsim):
 								
 			else:
 			
-				flux_inp.append(flux_cdwfs2[i])
-				flux_inp2.append(flux_cdwfs2[i])
+				flux_inp.append(flux_cdwfs[i])
 				
 				counterparts=np.array(counterparts)
 				counterparts=choose_best(counterparts)
@@ -269,56 +260,21 @@ for k in range(nsim):
 				simdata=np.delete(simdata,np.where(simdata['RA']==counterparts[0]),0)
 				
 		else:
-			if flux_cdwfs2[i] > 1e-13:
-				print(flux_cdwfs2[i],ra_cdwfs[i],dec_cdwfs[i])
+
 			unmatched=unmatched+1
 	
-	quante,bincenters_s = np.histogram(flux_cdwfs2, bins=bins00)
-	
-	quante_out,bincenters_s = np.histogram(flux_inp2, bins=bins00)
-	ratio = (quante_out/quante)*area
-	ratio[np.isnan(ratio)] = area
-	
-	rr.append(ratio)
-	
-	spurious.append(len(simdata))
-	print(len(simdata),'spurious sources left.')
-	
-
 	t_out=time.time()
 	print(round(float(t_out-t_in),1),' seconds for the match.')
 	##### End of matching #####
 	###########################
 
-	print('Median spurious sources:',np.median(spurious))
-	print('Observed flux ranges:',min(flux_out),max(flux_out))
-
-	flux_inp2= np.array(flux_inp)
-	flux_out2= np.array(flux_out)
-	probabilities2=np.array(probabilities)
-	tots2=np.array(tots)
-	bkgs2=np.array(bkgs)
-	snr2 = tots2/bkgs2
+	#flux_inp2 = np.array(flux_inp)
+	#flux_out2 = np.array(flux_out)
+	#probabilities2 = np.array(probabilities)
+	#tots2 = np.array(tots)
+	#bkgs2 = np.array(bkgs)
+	#snr2 = tots2/bkgs2
 	
-	x=np.log10(flux_inp2)
-	y=np.log10(flux_out2.astype(np.float64))
-	# Flux-flux plot
-	'''
-	plt.figure(figsize=(8,7))
-	sc = plt.scatter(x,y,c=np.log10(expos),marker='o',zorder=-1)
-	cbar = plt.colorbar(sc, pad =0.0)
-	cbar.ax.tick_params(labelsize=12)
-	cbar.set_label('log(Exposure/s)', rotation=270, labelpad=15, fontsize=12)
-	plt.plot(np.linspace(-16,-12,20),np.linspace(-16,-12,20),'k--')
-	plt.xlabel(r'log($F_{\rm Inp}$/erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
-	plt.ylabel(r'log($F_{\rm Out}$/erg cm$^{-2}$ s$^{-1}$)', fontsize=12)
-	plt.tick_params(axis='both', which='major', direction='in', length=6, labelsize=12)
-	plt.axis([-16.3,-11.7,-16.3,-11.7])
-	plt.tight_layout()
-	plt.show()
-	#plt.savefig(wd+'fin-fout.pdf',format='pdf')
-	'''
-
 	# INPUT LOGNLOGS
 	quante,bincenters_s = np.histogram(input,bins=bins00)
 	quante_perarea = quante/(area)
@@ -329,95 +285,32 @@ for k in range(nsim):
 	# SENSITIVITY CURVE
 	# Analytical
 	fl3,ar3=np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_geo.dat',unpack=True)
-	fl4,ar4=np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_civ.dat',unpack=True)
 	sens=np.interp(centers00,fl3,ar3)
 
-	# Sims
-	rr=np.array(rr)
 
-	ratio = np.median(rr, axis=0)
-	eratio = np.std(rr, axis=0)
-	#quante_out,bincenters_s = np.histogram(flux_inp, bins = bins00)
-	#ratio = (quante_out/quante)*area
-	#ratio[np.isnan(ratio)] = area
-
-	#equanteout = np.sqrt(quante_out)
-	#equante = np.sqrt(quante)
-	#eratio = np.sqrt((equanteout/quante)**2+(ratio*equante/quante)**2)*area
-
-	if write_out == True:
-		# Write out the sensitivity from simulations
-		w=open(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_'+simfolder[:-1]+'.dat','w')
-		for i in range(len(ratio)):
-			w.write(str(centers00[i])+' \t '+str(ratio[i])+' \t '+str(eratio[i])+'\n')
-		w.close()
-	
-	# Plot the sensitivity (analytical and sims)
-	'''
-	f,ax1=plt.subplots(1,1)
-	ax1.errorbar(centers00,ratio,yerr = eratio,marker = '*',markersize=15,label='matched/input')
-	ax1.plot(fl3,ar3,'k--',linewidth=2,label='Following Georgakakis')
-	ax1.plot(fl4,ar4,'k-.',linewidth=2,label='Standard way')
-	ax1.set_xlabel(r'Flux (erg cm$^{-2}$ s$^{-1}$)',fontsize=15)
-	ax1.set_ylabel(r'Area (deg$^2$)',fontsize=15)
-	ax1.tick_params(axis='both',labelsize=13)
-	ax1.set_xscale('log')
-	ax1.set_yscale('log')
-	ax1.axis([5e-17,5e-13,1e-3,10])
-	plt.legend()
-	plt.tight_layout()
-	plt.show()
-	'''
-
-	x = list((bins00[i+1]+bins00[i])/2. for i in range(len(bins00)-1))
-	x = np.array(x)
-	x0,y0 = np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_geo.dat',unpack=True)
-	sens = np.interp(x,x0,y0)
+	x0,y0 = np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_civ.dat',unpack=True)
+	sens_easy = np.interp(centers00,x0,y0)
 
 	a,b = np.histogram(flux_out, bins = bins00)
 
-	c = a/(sens*nsim)
-
-	y = list(reversed(np.cumsum(list(reversed(c)))))
-	
-	y = y*(x/1e-14)**1.5
-
-	ncum_in = list(reversed(np.cumsum(list(reversed(dnds(x,inppars)*ds00)))))
+	c = a/(sens_easy)
+	ncum_in = list(reversed(np.cumsum(list(reversed(dnds(centers00,inppars)*ds00)))))
 	ncum_in_poiss = list(reversed(np.cumsum(list(reversed(quante_perarea)))))
-
-	y_in = ncum_in*(x/1e-14)**1.5
-
-	y_in_poiss = ncum_in_poiss*(x/1e-14)**1.5
+	
+	y = list(reversed(np.cumsum(list(reversed(c)))))
+	y = y*(centers00/1e-14)**1.5
+	y_in = ncum_in*(centers00/1e-14)**1.5
+	y_in_poiss = ncum_in_poiss*(centers00/1e-14)**1.5
 
 	w=open(wd+'lognlogs_'+band+'_'+simfolder[:-1]+'_input.dat','w')
 	for jj in range(len(y_in)):
-		w.write(str(x[jj])+' \t '+str(y_in[jj])+' \t '+str(y_in_poiss[jj])+'\n')
+		w.write(str(centers00[jj])+' \t '+str(y_in[jj])+' \t '+str(y_in_poiss[jj])+'\n')
 	w.close()
 
 	w=open(wd+str(k)+'lognlogs_'+band+'_'+simfolder[:-1]+'_easyway.dat','w')
 	for jj in range(len(y)):
-		w.write(str(x[jj])+' \t '+str(y[jj])+'\n')
+		w.write(str(centers00[jj])+' \t '+str(y[jj])+'\n')
 	w.close()
-	# Plot the lognlogs with the easy way (divide fluxes by sensitivity)
-	'''
-	plt.figure()
-	#plt.errorbar(x,y,yerr=ey,marker='o',color='k',linestyle='None',label='CDWFS')
-	plt.plot(x,y,marker='o',color='k',linestyle='None',label='Simulation')
-	plt.plot(x,y_in_poiss,marker='o',color='r',linestyle='None',label='Input-Poiss')
-	plt.plot(x,y_in,'b-',label='Input')
-	plt.xscale('log')
-	plt.yscale('log')
-	if band == 'soft':
-		plt.xlabel('0.5-2 keV Flux')
-	elif band == 'hard':
-		plt.xlabel('2-10 keV Flux')
-
-	plt.ylabel('N(>S)*S^1.5')
-	#plt.axis([3e-17,1e-12,1,500])
-	plt.legend()
-	plt.show()
-	'''
-
 
 	# FIT (OR NOT) THE dN/dS double power law
 	if fit_dnds == True:
@@ -459,7 +352,7 @@ for k in range(nsim):
 					part1=part1+prob1
 
 				# Part1 contains the sum of the PDFs
-				part1b=part1/(sens*nsim)
+				part1b=part1/(sens)
 
 				cumpart1b=list(reversed(np.cumsum(list(reversed(part1b)))))
 				bootstrap_lognlogs.append(cumpart1b)
@@ -606,7 +499,7 @@ for k in range(nsim):
 	for j in range(len(y2)):
 		w.write(str(centers00[j])+' \t '+str(y2[j])+' \t '+str(y2_err[j])+'\n')
 	w.close()
-	
+
 
 sys.exit()	
 
@@ -631,46 +524,3 @@ plt.legend()
 plt.show()
 
 sys.exit()
-
-f,(ax1,ax2)=plt.subplots(2,1,sharex=True,figsize=[7,9])
-
-ax1.plot(centers00,ncum_in,'k-',linewidth=3, label='Input')
-if (fit_dnds == True) and (bootstrap == True):
-	ax1.plot(centers00,bfit_lognlogs,'r-',linewidth=2, label='Best Fit')
-	ax1.errorbar(centers00,mu_lognlogs,yerr=sigma_lognlogs,color='c',marker='.',linewidth=2,label='Recovered')
-else:
-	ax1.plot(centers00,cumpart1,'cs',linewidth=2,label='Recovered')
-
-ax1.axvline(np.median(flux_limit),color='gray',linestyle='dashed')
-ax1.axvspan(xmin=np.median(flux_limit)-(np.std(flux_limit)/2.),xmax=np.median(flux_limit)+(np.std(flux_limit)/2.),color='gray',alpha=0.5)
-
-ax1.set_ylabel(r'N(>S) (deg$^{-2}$)',fontsize=13)
-ax1.set_xscale('log')
-ax1.set_yscale('log')
-ax1.axis([5e-17,2e-12,0.1,2e4])
-ax1.tick_params(axis='both',which='both',top=True,right=True,direction='in',labelsize=12)
-
-
-ax2.plot(centers00,quante_perarea_perflux*centers00**2.5,'k-',linewidth=2, label='Input file')
-if (fit_dnds == True) and (bootstrap == True):
-	ax2.plot(centers00,bfit*centers00**2.5,'r-',linewidth=2, label='Best Fit')
-	ax2.errorbar(centers00,mu_dnds*centers00**2.5,yerr=sigma_dnds*centers00**2.5,color='c',marker='.',linewidth=2,label='Recovered')
-else:
-	ax2.plot(centers00,part1c*centers00**2.5,'cs',linewidth=2,label='Recovered')
-ax2.plot(centers00,dnds(centers00,inppars)*centers00**2.5,'r--')
-
-ax2.axvline(np.median(flux_limit),color='gray',linestyle='dashed')
-ax2.axvspan(xmin=np.median(flux_limit)-(np.std(flux_limit)/2.),xmax=np.median(flux_limit)+(np.std(flux_limit)/2.),color='gray',alpha=0.5)
-
-ax2.set_ylabel(r'dN/dS (deg$^{-2}$ [erg cm$^{-2}$ s$^{-1}$]$^{1.5}$)',fontsize=13)
-ax2.set_xlabel(r'S (erg cm$^{-2}$ s$^{-1}$)',fontsize=13)
-ax2.set_xscale('log')
-ax2.set_yscale('log')
-#ax2.axis([5e-17,2e-12,1e11,1e21])
-ax2.axis([5e-17,2e-12,1e-21,1e-18])
-ax2.tick_params(axis='both',which='both',top=True,right=True,direction='in',labelsize=12)
-
-ax1.legend()
-ax2.legend()
-plt.subplots_adjust(hspace=0)
-plt.show()

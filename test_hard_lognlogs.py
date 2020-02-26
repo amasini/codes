@@ -8,8 +8,13 @@ import scipy.stats.distributions
 import time
 from scipy.optimize import minimize
 from sklearn.utils import resample
-import seaborn as sns
+from scipy.special import gammainc
 
+# Function to compute distances in arcsec
+def distance(pointa, pointb):
+    xx = np.cos(pointa[1]/180*3.141592)
+    return np.sqrt(((pointa[0]-pointb[0])*xx*3600)**2 +((pointa[1]-pointb[1])*3600)**2)
+    
 # Function to compute dN/dS given parameters
 def dnds(fx,params):
 	
@@ -94,9 +99,9 @@ def boot_func(params):
 
 wd='/Users/alberto/Desktop/XBOOTES/'
 
-band='broad'
+band='hard'
 bootstrap = True
-nboot = 30
+nboot = 100
 write_output = True
 
 if band == 'broad':
@@ -111,64 +116,12 @@ else:
 	
 logcut = np.log10(cut)
 
-# Simulation
-'''
-cat=fits.open(wd+'sim_indep/9cdwfs_'+band+'_sim_cat1_exp-psf.fits')
-data=cat[1].data
-if band == 'broad':
-
-	exp = data['EXP']
-	tot = data['TOT']
-	bkg = data['BKG']
-	cr = data['CR']
-	flux0 = data['FLUX']
-	eflux0 = data['E_FLUX_+']
-	prob = data['PROB']
-elif band == 'soft':
-
-	exp = data['EXP']
-	tot = data['TOT']
-	bkg = data['BKG']
-	cr = data['CR']
-	flux0 = data['FLUX']
-	eflux0 = data['E_FLUX_+']
-	prob = data['PROB']
-else:
-
-	exp = data['EXP']
-	tot = data['TOT']
-	bkg = data['BKG']
-	cr = data['CR']
-	flux0 = data['FLUX']
-	eflux0 = data['E_FLUX_+']
-	prob = data['PROB']
-	
-cat.close()
-
-exp = exp[prob <= cut]
-tot = tot[prob <= cut]
-bkg = bkg[prob <= cut]
-cr = cr[prob <= cut]
-eflux0 = eflux0[prob <= cut]
-flux0 = flux0[prob <= cut]
-prob = prob[prob <= cut]
-
-exp = exp[eflux0 != 0]
-tot = tot[eflux0 != 0]
-bkg = bkg[eflux0 != 0]
-cr = cr[eflux0 != 0]
-flux0 = flux0[eflux0 != 0]
-prob0 = prob[eflux0 != 0]
-eflux0 = eflux0[eflux0 != 0]
-
-print('Using',len(exp),'sources for the following computation.')
-'''
-
 # Real data
 cat=fits.open(wd+'CDWFS_I-Ks-3.6_v200113.fits')
 data=cat[1].data
 ra =  data['CDWFS_RA']
 dec = data['CDWFS_DEC']
+r90 = data['CDWFS_R90_'+bb]
 exp = data['CDWFS_EXP_'+bb]
 tot = data['CDWFS_TOT_'+bb]
 bkg = data['CDWFS_BKG_'+bb]
@@ -181,6 +134,7 @@ cat.close()
 # Apply probability cut (automatically excludes upperlimits)
 ra = ra[prob <= cut]
 dec = dec[prob <= cut]
+r90 = r90[prob <= cut]
 exp = exp[prob <= cut]
 tot = tot[prob <= cut]
 bkg = bkg[prob <= cut]
@@ -189,21 +143,172 @@ eflux1 = eflux[prob <= cut]
 flux0 = flux[prob <= cut]
 prob1 = prob[prob <= cut]
 
-# Apply an exposure cut
-'''
-expo_cut = 9e4
+what = 'shal'
 
-ra = ra[exp < expo_cut]
-dec = dec[exp < expo_cut]
-tot = tot[exp < expo_cut]
-bkg = bkg[exp < expo_cut]
-cr = cr[exp < expo_cut]
-flux0 = flux0[exp < expo_cut]
-prob0 = prob0[exp < expo_cut]
-probf = probf[exp < expo_cut]
-probs = probs[exp < expo_cut]
-eflux0 = eflux0[exp < expo_cut]
-exp = exp[exp < expo_cut]
+if what == 'shal':
+	center = [217.86,34.42]
+	#center = [218.28,33.03]
+	#center = [217.6,33.41]
+	#center = [217.83,33.7]
+elif what == 'deep':
+	center = [216.41,35.61]
+# Select sources within radius from center
+#center = [216.41,35.61] # ~LaLa survey [216.41,35.61]; other center could be [217.86,34.42]
+radius = 670 # arcsec 
+
+# Filter sources computing distance to center of interesting region
+d=[]
+for k in range(len(ra)):
+	d.append(distance(center,[ra[k],dec[k]]))
+
+d = np.array(d)
+
+mask = d <= radius
+
+ra = ra[mask]
+dec = dec[mask]
+exp = exp[mask]
+tot = tot[mask]
+bkg = bkg[mask]
+cr = cr[mask]
+eflux1 = eflux1[mask]
+flux0 = flux0[mask]
+prob1 = prob1[mask]
+		
+# Filter maps based on selected regions and make sensitivities
+'''
+map = ['expomap','bkgmap','r90sq','ecfmap']
+# Cut Bkgmap,Expomap, file with sources to consider - DEEP field
+for i in range(len(map)):
+	s.call('dmcopy \''+wd+'new_mosaics_detection/cdwfs_'+band+'_'+map[i]+'_4reb.fits[sky=circle('+str(center[0])+'d,'+str(center[1])+'d,'+str(radius)+'\")]\' '+wd+'test_hard_lognlogs/cdwfs_'+band+'_'+map[i]+'_'+what+'.fits clobber=yes',shell=True)
+
+# Compute sensitivity for these regions following Georgakakis
+
+########### PARAMETERS ############
+rpsf='r90'
+logcut=-4.40
+pthresh=10**(logcut)
+
+rebin_factor=4.
+scale=(0.492/3600.)*rebin_factor #pixel size in deg
+arcsec2pix=scale*3600.
+###################################
+
+print('Doing',what,'in the',band,'band, using '+rpsf+' and '+str(round(logcut,2)))
+
+
+### Take expo map (exposure has average exposure in 4x4 pixels in s)
+expmap=fits.open(wd+'test_hard_lognlogs/cdwfs_'+band+'_expomap_'+what+'.fits')
+exp=expmap[0].data
+exp[np.isnan(exp)]=0.0 #put nans to 0
+expmap.close()
+
+### Take average psfmap squared (in arcsec)
+psfmap=fits.open(wd+'test_hard_lognlogs/cdwfs_'+band+'_r90sq_'+what+'.fits')
+psf=psfmap[0].data
+psfmap.close()
+
+# No need to convert to arcsec if psfmap in arsec is used
+sourcearea=np.pi*psf # Use r90
+fpsf=0.9
+
+### Take bkg map (bkgmap has SUMMED bkg in 4x4 pixels, like data)
+bkgmap=fits.open(wd+'test_hard_lognlogs/cdwfs_'+band+'_bkgmap_'+what+'.fits')
+bkg=bkgmap[0].data
+backheader=bkgmap[0].header
+bkg[np.isnan(bkg)]=0.0 #put nans to 0
+bkgmap.close()
+
+### Take energy conversion factors map (weighted average of countrate to flux factor)
+ecfmap=fits.open(wd+'test_hard_lognlogs/cdwfs_'+band+'_ecfmap_'+what+'.fits')
+ecf=ecfmap[0].data
+ecfmap.close()
+
+### Bkg is in cts/pixel; bkg2 is in cts [(cts/arcsec2)*arcsec2]
+pixarea=arcsec2pix*arcsec2pix
+bkg2=bkg*(sourcearea/pixarea)
+
+pcts=np.zeros_like(bkg2,dtype=float)
+
+
+# GAMMA INCOMPLETE METHOD
+# Given background and threshold probability, find how many counts are needed to have P < threhsold
+tin=time.time()
+tot0=np.arange(1,101)
+f=np.logspace(np.log10(1e-17),np.log10(2e-10),101)
+totprob=np.zeros_like(f)
+for i in range(bkg2.shape[0]):
+	for j in range(bkg2.shape[1]):
+		if exp[i][j] != 0.0:
+			trial=gammainc(tot0,bkg2[i][j])
+
+			pcts[i][j]=np.min(tot0[trial < pthresh])
+
+			T=bkg2[i][j]+f*exp[i][j]/ecf[i][j]*fpsf
+
+			prob=gammainc(pcts[i][j],T)
+			totprob=totprob+prob
+		else:
+			pcts[i][j]=0
+				
+print((time.time()-tin),'seconds for the georkakais map.')
+
+totprob=totprob*2.988e-7 # convert to area (1 4x4 pix is 2.988e-7 deg2)
+
+### Write out result
+w=open(wd+'test_hard_lognlogs/cdwfs_'+band+'_sens_geo_'+what+'.dat','w')
+for j in range(len(f)):
+	w.write(str(f[j])+' \t '+str(totprob[j])+'\n')
+w.close()
+
+
+# FOLLOWING CIVANO, EASIER METHOD
+
+# Given background and threshold probability, find how many counts are needed to have P < threhsold
+tin=time.time()
+tot0=np.arange(1,101)
+f=np.logspace(np.log10(1e-17),np.log10(2e-10),101)
+fcen = list((f[i+1]+f[i])/2. for i in range(len(f)-1))
+fcen = np.array(fcen)
+#totprob=np.zeros_like(f)
+for i in range(bkg2.shape[0]):
+	for j in range(bkg2.shape[1]):
+		if exp[i][j] != 0.0:
+			trial=gammainc(tot0,bkg2[i][j])
+			
+			pct = np.min(tot0[trial < pthresh])
+			
+			pcts[i][j] = ((pct - bkg2[i][j])*ecf[i][j])/(exp[i][j]*fpsf)
+			
+		else:
+			pcts[i][j]=0
+			
+print((time.time()-tin)/60.,'minutes for the normal map.')
+
+a,b = np.histogram(pcts, bins = f)
+totprob = np.cumsum(a)
+
+totprob=totprob*2.988e-7 # convert to area (1 4x4 pix is 2.988e-7 deg2)
+
+### Write out result
+w=open(wd+'test_hard_lognlogs/cdwfs_'+band+'_sens_civ_'+what+'.dat','w')
+for j in range(len(fcen)):
+	w.write(str(fcen[j])+' \t '+str(totprob[j])+'\n')
+w.close()
+'''
+
+# Plot the sensitivities
+'''
+f0,a0 = np.genfromtxt(wd+'test_hard_lognlogs/cdwfs_hard_sens_geo_deep.dat',unpack=True)
+f1,a1 = np.genfromtxt(wd+'test_hard_lognlogs/cdwfs_hard_sens_geo_shal.dat',unpack=True)
+
+plt.figure()
+plt.plot(f0,a0,'k-',label='Deep')
+plt.plot(f1,a1,'b-',label='Shal')
+plt.xscale('log')
+plt.yscale('log')
+plt.legend()
+plt.show()
 '''
 
 # Apply a flux cut - if I cut in flux like this, I lose information on the faint end of the lognlogs and on the flux break.
@@ -229,25 +334,22 @@ centers00=np.array(centers00)
 ds00 = list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
 ds00 = np.array(ds00)
 
-# Take sensitivity curve made with Georgakakis method
-(rawf,rawa)=np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_geo.dat',unpack=True)
-sens=np.interp(centers00,rawf,rawa)
-
 # EASY WAY
-'''
-bins00=np.logspace(np.log10(9e-16),np.log10(2e-12),10) # Check the limits here based on detected sources
-centers00=list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
-centers00=np.array(centers00)
-ds00 = list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
-ds00 = np.array(ds00)
 
-# take sensitivity curve made with Georgakakis method
-(rawf,rawa)=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis_r90.dat',unpack=True)
+# Take sensitivity curve made with Civano method
+(rawf,rawa)=np.genfromtxt(wd+'test_hard_lognlogs/cdwfs_'+band+'_sens_civ_'+what+'.dat',unpack=True)
 sens=np.interp(centers00,rawf,rawa)
+
 part1,bc = np.histogram(flux0, bins = bins00)
 part1b=part1/sens
 
 cumpart0=list(reversed(np.cumsum(list(reversed(part1b)))))
+
+if write_output == True:
+		w=open(wd+'test_hard_lognlogs/cdwfs_lognlogs_'+band+'_'+what+'_easy.dat','w')
+		for jj in range(len(centers00)):
+			w.write(str(centers00[jj])+' \t '+str(cumpart0[jj])+' \n')
+		w.close()
 
 geos,geon = np.genfromtxt(wd+'geo_lognlogs_'+band+'.txt',unpack=True)
 #geos= 6.887E-01*geos # convert from 2-10 to 2-7, Gamma = 1.4
@@ -255,10 +357,13 @@ if band == 'hard':
 	geos= 0.75*geos # convert from 2-10 to 2-7, Gamma = 1.8
 elif band == 'broad':
 	geos = 8.455E-01*geos # convert from 0.5-10 to 0.5-7, Gamma = 1.8
-	
+
+ff,yy = np.genfromtxt(wd+'test_hard_lognlogs/cdwfs_lognlogs_'+band+'_deep_easy.dat',unpack=True)
+
 plt.figure()
-plt.plot(geos,geon,'k-',ms=10,label='Georgakakis')
-plt.plot(centers00,cumpart0,'ro',ms=10,label='CDWFS')
+plt.plot(geos,geon,'k-',label='Georgakakis')
+plt.plot(centers00,cumpart0,'ro',ms=5,label='CDWFS-Shal')
+plt.plot(centers00,yy,'bo',ms=5,label='CDWFS-Deep')
 plt.xlabel(r''+band+' band flux (erg cm$^{-2}$ s$^{-1}$)')
 plt.ylabel(r'$N(>S)$ (deg$^{-2}$)')
 plt.xscale('log')
@@ -266,8 +371,7 @@ plt.yscale('log')
 #plt.axis([5e-18,1e-12,0.1,200])
 plt.legend()
 plt.show()
-sys.exit()
-'''
+
 
 # Check the interpolation
 #plt.figure()
@@ -279,7 +383,12 @@ sys.exit()
 
 ######################################
 # RECOVER THE dN/dS WITH THE PARAMETERS
+'''
 print('Now fitting the dN/dS...')
+
+# Take sensitivity curve made with Georgakakis method
+(rawf,rawa)=np.genfromtxt(wd+'test_hard_lognlogs/cdwfs_'+band+'_sens_geo_'+what+'.dat',unpack=True)
+sens=np.interp(centers00,rawf,rawa)
 
 if bootstrap == True:
 	# Compute dN/dS following Georgakakis+08 and use nboot bootstrap for uncertainties
@@ -297,10 +406,12 @@ if bootstrap == True:
 		boot = resample(data, replace=True, n_samples=len(data), random_state=None)
 		
 		# Minimize the -Likelihood function starting from a guess of the parameters
-		guess=[-1,-2,5e-15]
+		guess=[-1,-2,8e-15]
 		res=minimize(boot_func, guess, method='nelder-mead')
-
+		#print(res)
+		
 		parameters=res.x
+		
 		p0.append(parameters[0])
 		p1.append(parameters[1])
 		p2.append(parameters[2])
@@ -326,7 +437,9 @@ if bootstrap == True:
 
 		# This is the effective dN/dS (sources/deg2/flux_bin)
 		part1c=part1b/ds00
-
+		print(part1c)
+		if part1c[0] == np.nan:
+			sys.exit()
 		bootstrap_dnds.append(part1c)
 
 	mu_dnds,sigma_dnds=[],[]
@@ -360,96 +473,30 @@ if bootstrap == True:
 	bfit_lognlogs = list(reversed(np.cumsum(list(reversed(bfit*ds00)))))
 
 	print(round(float(time.time()-tin)/60.,1),' minutes for the bootstrap.')
-	'''
-	f,(ax1,ax2)=plt.subplots(2,1,sharex=True,figsize=[7,9])
-	
-	ax1.plot(centers00,bfit_lognlogs,'r-',linewidth=2, label='Best Fit')
-	ax1.errorbar(centers00,mu_lognlogs,yerr=sigma_lognlogs,color='c',marker='.',linewidth=2,label='Recovered')
-	
-	ax1.set_ylabel(r'N(>S) (deg$^{-2}$)',fontsize=13)
-	ax1.set_xscale('log')
-	ax1.set_yscale('log')
-	ax1.axis([5e-17,2e-12,0.1,2e4])
-	ax1.tick_params(axis='both',which='both',top=True,right=True,direction='in',labelsize=12)
-
-
-	ax2.plot(centers00,bfit*centers00**2.5,'r-',linewidth=2, label='Best Fit')
-	ax2.errorbar(centers00,mu_dnds*centers00**2.5,yerr=sigma_dnds*centers00**2.5,color='c',marker='.',linewidth=2,label='Recovered')
-	
-	ax2.set_ylabel(r'dN/dS (deg$^{-2}$ [erg cm$^{-2}$ s$^{-1}$]$^{1.5}$)',fontsize=13)
-	ax2.set_xlabel(r'S (erg cm$^{-2}$ s$^{-1}$)',fontsize=13)
-	ax2.set_xscale('log')
-	ax2.set_yscale('log')
-	#ax2.axis([5e-17,2e-12,1e11,1e21])
-	ax2.axis([5e-17,2e-12,1e-21,1e-18])
-	ax2.tick_params(axis='both',which='both',top=True,right=True,direction='in',labelsize=12)
-
-	ax1.legend()
-	ax2.legend()
-	plt.subplots_adjust(hspace=0)
-	plt.show()
-	'''
 	
 	cumpart0=mu_lognlogs
 	e_cumpart0 = sigma_lognlogs
 	
 	if write_output == True:
-		w=open(wd+'cdwfs_dnds_'+band+'.dat','w')
+		w=open(wd+'test_hard_lognlogs/cdwfs_dnds_'+band+'_'+what+'.dat','w')
 		for jj in range(len(mu_dnds)):
 			w.write(str(centers00[jj])+' \t '+str(mu_dnds[jj])+' \t '+str(sigma_dnds[jj])+'\n')
 		w.close()
 	
-		w=open(wd+'cdwfs_dnds_bfit-pars_'+band+'.dat','w')
+		w=open(wd+'test_hard_lognlogs/cdwfs_dnds_bfit-pars_'+band+'_'+what+'.dat','w')
 		w.write('Beta1 \t eBeta1 \t Beta2 \t eBeta2 \t Fb \t eFb \n')
 		w.write(str(b1)+' \t '+str(eb1)+' \t '+str(b2)+' \t '+str(eb2)+' \t '+str(fb)+' \t '+str(efb)+'\n')
 		w.close()
 	
-		w=open(wd+'cdwfs_lognlogs_'+band+'.dat','w')
+		w=open(wd+'test_hard_lognlogs/cdwfs_lognlogs_'+band+'_'+what+'.dat','w')
 		for jj in range(len(mu_lognlogs)):
 			w.write(str(centers00[jj])+' \t '+str(mu_lognlogs[jj])+' \t '+str(sigma_lognlogs[jj])+'\n')
 		w.close()
 
-else:
-	
-	tin=time.time()
-	guess = [-1,-2,6e-15]
-	res = minimize(func, guess, method='nelder-mead', options={'adaptive':True})
-	print(round(float(time.time()-tin),1),' seconds for the -likelihood minimization.')
-	print('guess:',guess)
-	print('output:',res.x)
+'''
 
-	pars = res.x
-	
-	#pars = [-1.3,-2.5,8e-15]
-	
-	part0=np.zeros_like(centers00)
-	part1=np.zeros_like(centers00)
-
-	for i in range(len(exp)):
-
-		observed_flux=flux0[i]
-
-		ecf=observed_flux/cr[i]
-
-		# Compute the PDFs
-		T=bkg[i]+(centers00/ecf)*exp[i]*0.9
-		prob1=scipy.stats.distributions.poisson.pmf(tot[i],T)*(dnds(centers00,pars)*ds00)
-
-		# Normalize them (this step should be correct)
-		prob1=prob1/np.sum(prob1)
-
-		# Store in the sum
-		part1=part1+prob1
-
-	# Part 0/1 contains the sum of the PDFs
-	part1b=part1/sens
-	
-	# dN/dS
-	part1c=list(part1b[i]/(bins00[i+1]-bins00[i]) for i in range(len(bins00)-1))
-
-	# logN-logS
-	cumpart0=list(reversed(np.cumsum(list(reversed(part1b)))))
-
+x,y,ey = np.genfromtxt(wd+'test_hard_lognlogs/cdwfs_lognlogs_hard_shal.dat',unpack=True)
+x,y1,ey1 = np.genfromtxt(wd+'test_hard_lognlogs/cdwfs_lognlogs_hard_deep.dat',unpack=True)
 
 geos,geon = np.genfromtxt(wd+'geo_lognlogs_'+band+'.txt',unpack=True)
 if band == 'hard':
@@ -459,8 +506,10 @@ elif band == 'broad':
 	geos = 8.455E-01*geos # convert from 0.5-10 to 0.5-7, Gamma = 1.8
 
 plt.figure()
-if bootstrap == 'True':
-	plt.errorbar(centers00,cumpart0,yerr=e_cumpart0,color='r',marker='.',ms=10,label='CDWFS')
+if bootstrap == True:
+	#plt.errorbar(centers00,cumpart0,yerr=e_cumpart0,color='b',marker='.',ms=10,label='CDWFS-Shal')
+	plt.errorbar(centers00,y,yerr=ey,color='r',marker='.',ms=10,label='CDWFS-Shal')
+	plt.errorbar(centers00,y1,yerr=ey1,color='b',marker='.',ms=10,label='CDWFS-Deep')
 else:
 	plt.plot(centers00,cumpart0,color='r',marker='.',ms=10,label='CDWFS')
 plt.plot(geos,geon,'k-',ms=10,label='Georgakakis')

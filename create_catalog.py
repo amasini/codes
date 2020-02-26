@@ -87,7 +87,7 @@ print(len(raf[probf<=cutf]))
 print(len(ras[probs<=cuts]))
 print(len(rah[probh<=cuth]))
 print('we should have a total of',len(raf[(probf<=cutf) | (probs<=cuts) | (probh<=cuth)]),'sources.')
-
+print('OLD SCRIPT, USE CREATE_CATALOG_V2.PY')
 sys.exit()
 
 count=0

@@ -12,6 +12,9 @@ import time
 
 wd = '/Users/alberto/Desktop/XBOOTES/'
 
+print('This script is obsolete.')
+sys.exit()
+
 # take the cdwfs catalog
 cat=fits.open(wd+'cdwfs_merged_cat1.fits')
 ra=cat[1].data['RA']

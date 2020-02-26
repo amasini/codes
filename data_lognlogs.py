@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import time
 import scipy.stats.distributions
 from scipy.optimize import minimize
-import numdifftools as nd
+#import numdifftools as nd
 from sklearn.utils import resample
 
 # Function of the differential number counts
@@ -69,23 +69,30 @@ band = 'broad'
 
 #define cuts (may be revised based on spurious_sources.py)
 if band=='broad':
-	cut=8e-5
+	cut=10**(-4.63)
+	bb = 'F'
 elif band=='soft':
-	cut=6e-4
+	cut=10**(-4.57)
+	bb = 'S'
 elif band=='hard':
-	cut=4e-5
+	cut=10**(-4.40)
+	bb = 'H'
 
-cat1=fits.open(wd+'new_mosaics_detection/cdwfs_'+band+'_cat1.fits')
+logcut = np.log10(cut)
 
-ra_d=cat1[1].data['RA']
-dec_d=cat1[1].data['DEC']
-tot=cat1[1].data['TOT']
-bkg=cat1[1].data['BKG']
-exp=cat1[1].data['EXP']
-prob=cat1[1].data['PROB']
-r90=cat1[1].data['AV_R90']
-cr=cat1[1].data['CR']
-flux_d=cat1[1].data['FLUX']
+cat1=fits.open(wd+'CDWFS_I-Ks-3.6_v200113.fits')
+
+ra_d=cat1[1].data['CDWFS_RA']
+dec_d=cat1[1].data['CDWFS_DEC']
+tot=cat1[1].data['CDWFS_TOT_'+bb]
+bkg=cat1[1].data['CDWFS_BKG_'+bb]
+exp=cat1[1].data['CDWFS_EXP_'+bb]
+prob=cat1[1].data['CDWFS_PROB_'+bb]
+r90=cat1[1].data['CDWFS_R90_'+bb]
+cr=cat1[1].data['CDWFS_CR_'+bb]
+flux_d=cat1[1].data['CDWFS_FLUX_'+bb]
+
+cat1.close()
 
 # Cut detected sample at a given probability threshold 
 ra_d=ra_d[prob<=cut]
@@ -101,14 +108,14 @@ prob=prob[prob<=cut]
 ecf=flux_d/cr
 
 # Define the flux range and bins
-bins00=np.logspace(np.log10(5e-16),np.log10(1e-11),51)
+bins00=np.logspace(np.log10(5e-16),np.log10(1e-12),51)
 centers00=list((bins00[i+1]+bins00[i])/2. for i in range(0,len(bins00)-1))
 ds00=list((bins00[i+1]-bins00[i]) for i in range(0,len(bins00)-1))
 centers00=np.array(centers00)
 ds00=np.array(ds00)
 
 # Take the sensitivity made with Georgakakis method (sens.py code)
-fl2,ar2=np.genfromtxt(wd+'cdwfs_'+band+'_sens_georgakakis.dat',unpack=True)
+fl2,ar2=np.genfromtxt(wd+'cdwfs_'+band+'_sens_'+str(round(logcut,1))+'_geo.dat',unpack=True)
 sens=np.interp(centers00,fl2,ar2)
 
 #######################################################
